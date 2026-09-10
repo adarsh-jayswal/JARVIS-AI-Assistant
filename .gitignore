@@ -1,11 +1,21 @@
+
+
 # Environment variables
 .env
 .env.*
+!.env.example
 
-
-.DS_Store
-
-# Python cache
+# Python
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# Database
+*.db
+
+# Jupyter
+.ipynb_checkpoints/

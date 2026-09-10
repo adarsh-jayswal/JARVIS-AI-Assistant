@@ -1,74 +1,521 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Personal Assistant</title>
+    <title>JARVIS &mdash; Your Personal AI Assistant</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1 class="main-heading">AI Personal Assistant</h1>
+    <div class="app-layout">
+        <!-- SIDEBAR -->
+        <aside id="appSidebar" class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <img src="{{ url_for('static', filename='images/jarvis_logo.jpg') }}" alt="JARVIS Logo" class="brand-logo-img">
+                    <div class="brand-text">
+                        <h1 class="brand-name">JARVIS</h1>
+                        <span class="brand-subtitle">Personal AI Assistant</span>
+                    </div>
+                </div>
+                <button id="sidebarToggleBtn" class="icon-btn sidebar-toggle" title="Toggle Sidebar" aria-label="Toggle Sidebar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
 
-    <div class="container">
+            <!-- PROMINENT NEW CHAT BUTTON -->
+            <div class="sidebar-action-container">
+                <button id="newChatBtn" class="btn primary-btn new-chat-btn full-width" title="Start a fresh conversation">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span> New Chat</span>
+                </button>
+            </div>
 
-        <h2>Ask Anything</h2>
-        <form id="askForm">
-            <input type="text" name="question" placeholder="Ask anything..." required>
-            <button type="submit">Ask</button>
-        </form>
-        <p id="ans-loading" style="display: none;">Processing...</p>
-        <p id="answer"></p>
+            <nav class="sidebar-nav">
+                <div class="nav-section-title">Navigation</div>
+                <button id="navChat" class="nav-item active" data-view="chatView">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <span>Chat</span>
+                </button>
+                <button id="navSummarize" class="nav-item" data-view="summarizeView">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                    <span>Email Summarizer</span>
+                </button>
+                <button id="navDeveloper" class="nav-item" data-view="developerView">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                    <span>Developer Mode</span>
+                </button>
+                <button id="navNotes" class="nav-item" data-view="notesView">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    <span>Notes</span>
+                </button>
+                <button id="navHistory" class="nav-item" data-view="historyView">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span>History</span>
+                </button>
+                <button id="navSettings" class="nav-item" data-view="settingsView">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    <span>Settings</span>
+                </button>
 
-        <hr>
+                <!-- SIDEBAR CHATS MANAGER SECTION -->
+                <div class="nav-section-title">Chats</div>
+                <div class="chats-search-container">
+                    <input type="text" id="chatsSearchInput" class="chats-search-input" placeholder="Search chats...">
+                </div>
+                <div id="sidebarChatsList" class="sidebar-chats-list"></div>
 
-        <h2>Summarize Email</h2>
-        <form id="emailForm">
-            <textarea type="text" name="email" placeholder="Paste your email here.." required></textarea>
-            <button type="submit">Summarize</button>
-        </form>
-        <p id="summary-loading" style="display: none;">Processing...</p>
-        <p id="summary"></p>
+                <div class="nav-section-title">Coming Soon</div>
+                <button class="nav-item disabled" title="Coming Soon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
+                    <span>Documents</span>
+                    <span class="badge">Soon</span>
+                </button>
+                <button class="nav-item disabled" title="Coming Soon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+                    <span>Web Search</span>
+                    <span class="badge">Soon</span>
+                </button>
+            </nav>
 
+            <!-- SIDEBAR PROFILE SECTION -->
+            <div class="sidebar-profile">
+                <div class="profile-avatar-container" id="profileAvatarBadge">U</div>
+                <div class="profile-info">
+                    <span class="profile-name" id="profileUserName">User</span>
+                    <span class="profile-role">Personal Account</span>
+                </div>
+                <button id="logoutBtn" class="icon-btn logout-btn" title="Logout of JARVIS">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTAINER -->
+        <main class="main-wrapper">
+            <!-- TOP BAR HEADER -->
+            <header class="top-bar">
+                <div class="top-left">
+                    <button id="mobileMenuBtn" class="icon-btn mobile-menu-btn" title="Open Sidebar" aria-label="Open Sidebar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                    </button>
+                    <div class="top-bar-identity">
+                        <img src="{{ url_for('static', filename='images/jarvis_logo.jpg') }}" alt="JARVIS Mini Logo" class="top-mini-logo">
+                        <h2 id="viewTitle" class="view-title">JARVIS Chat</h2>
+                    </div>
+                </div>
+
+                <div class="top-right">
+                    <!-- THEME TOGGLE BUTTON -->
+                    <button id="themeToggleBtn" class="icon-btn" title="Toggle Theme" aria-label="Toggle Theme">
+                        <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                        <svg class="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    </button>
+                    <!-- CLEAR CHAT BUTTON -->
+                    <button id="clearChatBtn" class="btn secondary-btn" title="Clear messages from current conversation">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        <span>Clear Chat</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- VIEW 1: CHAT VIEW -->
+            <section id="chatView" class="view-panel active">
+                <!-- MODE SELECTOR PILLS -->
+                <div class="mode-selector-bar">
+                    <span class="mode-label">Mode:</span>
+                    <div class="mode-pills">
+                        <button class="mode-pill active" data-mode="chat">💬 Chat</button>
+                        <button class="mode-pill" data-mode="explain">💡 Explain</button>
+                        <button class="mode-pill" data-mode="write">✍️ Write</button>
+                        <button class="mode-pill" data-mode="code">💻 Code</button>
+                        <button class="mode-pill" data-mode="summarize">📊 Summarize</button>
+                        <button class="mode-pill" data-mode="brainstorm">🚀 Brainstorm</button>
+                    </div>
+                </div>
+
+                <!-- CHAT STREAM CONTAINER -->
+                <div id="chatContainer" class="chat-container">
+                    <!-- WELCOME SCREEN -->
+                    <div id="welcomeScreen" class="welcome-screen">
+                        <div class="jarvis-hero-logo">
+                            <img src="{{ url_for('static', filename='images/jarvis_logo.jpg') }}" alt="JARVIS Official Logo" class="hero-logo-img">
+                        </div>
+                        <h2 id="greetingHeading">Good afternoon.</h2>
+                        <p class="welcome-subtitle">How can I assist you today?</p>
+
+                        <div class="starter-grid">
+                            <button class="starter-card" data-prompt="Explain recursion simply">
+                                <span class="card-icon">💡</span>
+                                <div class="card-info">
+                                    <strong>Explain recursion simply</strong>
+                                    <span>Learn programming concepts step-by-step</span>
+                                </div>
+                            </button>
+
+                            <button class="starter-card" data-prompt="Help me fix this Python error">
+                                <span class="card-icon">🐛</span>
+                                <div class="card-info">
+                                    <strong>Help me fix this Python error</strong>
+                                    <span>Debug code issues and stack trace errors</span>
+                                </div>
+                            </button>
+
+                            <button class="starter-card" data-prompt="Write a professional email">
+                                <span class="card-icon">✍️</span>
+                                <div class="card-info">
+                                    <strong>Write a professional email</strong>
+                                    <span>Draft compelling messages and follow-ups</span>
+                                </div>
+                            </button>
+
+                            <button class="starter-card" data-prompt="Summarize this text">
+                                <span class="card-icon">📄</span>
+                                <div class="card-info">
+                                    <strong>Summarize this text</strong>
+                                    <span>Extract core points and action items</span>
+                                </div>
+                            </button>
+
+                            <button class="starter-card" data-prompt="Give me project ideas">
+                                <span class="card-icon">🚀</span>
+                                <div class="card-info">
+                                    <strong>Give me project ideas</strong>
+                                    <span>Brainstorm unique coding & creative ideas</span>
+                                </div>
+                            </button>
+
+                            <button class="starter-card" data-prompt="Teach me JavaScript">
+                                <span class="card-icon">💻</span>
+                                <div class="card-info">
+                                    <strong>Teach me JavaScript</strong>
+                                    <span>Master web development fundamentals</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- MESSAGE LIST -->
+                    <div id="messageList" class="message-list" style="display: none;"></div>
+
+                    <!-- TYPING INDICATOR -->
+                    <div id="typingIndicator" class="typing-indicator" style="display: none;">
+                        <img src="{{ url_for('static', filename='images/jarvis_logo.jpg') }}" alt="JARVIS Mini Logo" class="typing-avatar-img">
+                        <div class="typing-bubble">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </div>
+                        <span class="typing-text">JARVIS is thinking...</span>
+                    </div>
+                </div>
+
+                <!-- CHAT COMPOSER -->
+                <div class="composer-container">
+                    <form id="chatForm" class="composer-form">
+                        <textarea 
+                            id="chatInput" 
+                            placeholder="Type a message... (Press Enter to send, Shift+Enter for new line)" 
+                            rows="1"
+                            required
+                        ></textarea>
+                        
+                        <!-- VOICE MIC BUTTON -->
+                        <button type="button" id="micBtn" class="icon-btn mic-btn" title="Voice Input (Speech-to-Text)">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                        </button>
+
+                        <button type="submit" id="sendBtn" class="btn primary-btn send-btn" aria-label="Send Message">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- VIEW 2: EMAIL SUMMARIZER VIEW -->
+            <section id="summarizeView" class="view-panel" style="display: none;">
+                <div class="panel-content-container">
+                    <div class="panel-header">
+                        <h2>Email Summarizer</h2>
+                        <p>Paste any email content below to generate a structured breakdown: Summary, Key Points, Action Items, and Suggested Reply.</p>
+                    </div>
+
+                    <form id="emailForm" class="custom-form">
+                        <div class="form-group">
+                            <label for="emailInput">Email Content</label>
+                            <textarea id="emailInput" rows="9" placeholder="Paste full email text here..." required></textarea>
+                        </div>
+                        <button type="submit" id="summarizeSubmitBtn" class="btn primary-btn">Summarize Email</button>
+                    </form>
+
+                    <div id="summarizeLoading" class="loading-state" style="display: none;">
+                        <div class="spinner"></div>
+                        <span>JARVIS is processing email text...</span>
+                    </div>
+
+                    <div id="summaryOutputCard" class="output-card" style="display: none;">
+                        <div class="output-card-header">
+                            <span class="output-badge">Summary Result</span>
+                        </div>
+                        <div id="summaryOutputText" class="output-body"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 3: DEVELOPER MODE VIEW -->
+            <section id="developerView" class="view-panel" style="display: none;">
+                <div class="panel-content-container">
+                    <div class="panel-header">
+                        <h2>Developer Mode</h2>
+                        <p>Paste your code snippet or error stack trace to get beginner-friendly debugging, refactoring, or solutions.</p>
+                    </div>
+
+                    <div class="dev-actions-bar">
+                        <button class="dev-action-btn active" data-action="debug">🐛 Debug Error</button>
+                        <button class="dev-action-btn" data-action="explain">💡 Explain Code</button>
+                        <button class="dev-action-btn" data-action="fix">🛠️ Fix Code</button>
+                        <button class="dev-action-btn" data-action="refactor">✨ Refactor</button>
+                        <button class="dev-action-btn" data-action="generate">🚀 Generate Code</button>
+                    </div>
+
+                    <form id="devForm" class="custom-form">
+                        <div class="form-group">
+                            <label for="devCodeInput">Code / Error Stack Trace</label>
+                            <textarea id="devCodeInput" rows="10" placeholder="Paste your code snippet or error traceback here..." required></textarea>
+                        </div>
+                        <button type="submit" id="devSubmitBtn" class="btn primary-btn">Analyze Code</button>
+                    </form>
+
+                    <div id="devLoading" class="loading-state" style="display: none;">
+                        <div class="spinner"></div>
+                        <span>JARVIS Developer Engine is analyzing code...</span>
+                    </div>
+
+                    <div id="devOutputCard" class="output-card" style="display: none;">
+                        <div class="output-card-header">
+                            <span class="output-badge">Developer Analysis</span>
+                        </div>
+                        <div id="devOutputText" class="output-body"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 4: NOTES VIEW -->
+            <section id="notesView" class="view-panel" style="display: none;">
+                <div class="notes-layout">
+                    <!-- NOTES SIDEBAR -->
+                    <div class="notes-sidebar">
+                        <div class="notes-search-bar">
+                            <input type="text" id="notesSearchInput" placeholder="Search notes...">
+                        </div>
+                        <button id="newNoteBtn" class="btn secondary-btn full-width">+ New Note</button>
+                        <div id="notesList" class="notes-list"></div>
+                    </div>
+
+                    <!-- NOTES EDITOR -->
+                    <div class="notes-editor">
+                        <div class="notes-editor-header">
+                            <input type="text" id="noteTitleInput" placeholder="Note Title...">
+                            <div class="notes-editor-actions">
+                                <button id="saveNoteBtn" class="btn primary-btn sm">Save</button>
+                                <button id="deleteNoteBtn" class="btn danger-btn sm">Delete</button>
+                            </div>
+                        </div>
+
+                        <!-- AI ACTIONS FOR NOTES -->
+                        <div class="notes-ai-bar">
+                            <span class="notes-ai-label">AI Tools:</span>
+                            <button class="notes-ai-btn" data-ai-action="summarize">Summarize</button>
+                            <button class="notes-ai-btn" data-ai-action="improve">Improve Writing</button>
+                            <button class="notes-ai-btn" data-ai-action="tasks">Extract Tasks</button>
+                            <button class="notes-ai-btn" data-ai-action="explain">Explain</button>
+                        </div>
+
+                        <textarea id="noteBodyInput" placeholder="Write your note here..."></textarea>
+
+                        <div id="noteAiResultCard" class="output-card" style="display: none; margin-top: 16px;">
+                            <div class="output-card-header">
+                                <span class="output-badge">AI Note Enhancement</span>
+                            </div>
+                            <div id="noteAiResultText" class="output-body"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 5: CHAT HISTORY VIEW -->
+            <section id="historyView" class="view-panel" style="display: none;">
+                <div class="panel-content-container">
+                    <div class="panel-header-row">
+                        <div>
+                            <h2>Conversation History</h2>
+                            <p>Browse, restore, or manage previous JARVIS chat sessions stored in your browser.</p>
+                        </div>
+                        <button id="clearAllHistoryBtn" class="btn danger-btn sm">Clear All History</button>
+                    </div>
+
+                    <div id="historyContainer" class="history-grid"></div>
+                </div>
+            </section>
+
+            <!-- VIEW 6: SETTINGS VIEW -->
+            <section id="settingsView" class="view-panel" style="display: none;">
+                <div class="panel-content-container max-600">
+                    <div class="panel-header">
+                        <h2>Settings</h2>
+                        <p>Configure JARVIS preferences, account settings, profile name, avatar, appearance, and chat behaviors.</p>
+                    </div>
+
+                    <!-- ACCOUNT SECTION -->
+                    <div class="settings-group">
+                        <h3>Account</h3>
+                        <div class="setting-item">
+                            <div>
+                                <strong id="settingsUserName">User Name</strong>
+                                <p id="settingsUserEmail" class="text-muted-sm">user@example.com</p>
+                            </div>
+                            <button type="button" id="settingsLogoutBtn" class="btn danger-btn sm">Logout</button>
+                        </div>
+                    </div>
+
+                    <!-- PROFILE EDITOR CARD -->
+                    <div class="settings-group">
+                        <h3>User Profile</h3>
+                        <div class="profile-editor-card">
+                            <div class="profile-editor-header">
+                                <div id="profileEditorPreview" class="profile-preview-box">
+                                    <span id="profileEditorBadge">U</span>
+                                </div>
+                                <div class="profile-editor-actions">
+                                    <label for="avatarFileInput" class="btn secondary-btn sm upload-btn">
+                                        <span>Choose Image</span>
+                                        <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
+                                    </label>
+                                    <button type="button" id="removeAvatarBtn" class="btn danger-btn sm" style="display: none;">Remove Avatar</button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-top: 14px;">
+                                <label for="userNameInput">Profile Name</label>
+                                <input type="text" id="userNameInput" value="User" class="custom-input-sm" placeholder="Enter your name...">
+                            </div>
+                            <div class="profile-editor-footer" style="margin-top: 16px; display: flex; align-align: center;">
+                                <button type="button" id="saveProfileBtn" class="btn primary-btn sm">Save Profile</button>
+                                <span id="profileStatusToast" class="status-toast" style="display: none;">✓ Profile updated</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Appearance</h3>
+                        <div class="setting-item">
+                            <div>
+                                <strong>Theme Mode</strong>
+                                <p>Choose dark, light, or sync with your system theme.</p>
+                            </div>
+                            <select id="themeSelect" class="custom-select">
+                                <option value="dark">Dark Theme (Red Accent)</option>
+                                <option value="light">Light Theme</option>
+                                <option value="system">System Preference</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Assistant Behavior</h3>
+                        <div class="setting-item">
+                            <div>
+                                <strong>Default Chat Mode</strong>
+                                <p>Set default persona mode for new chat sessions.</p>
+                            </div>
+                            <select id="defaultModeSelect" class="custom-select">
+                                <option value="chat">Chat (Default)</option>
+                                <option value="explain">Explain</option>
+                                <option value="write">Write</option>
+                                <option value="code">Code</option>
+                                <option value="summarize">Summarize</option>
+                                <option value="brainstorm">Brainstorm</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Chat & Privacy</h3>
+                        <div class="setting-item">
+                            <div>
+                                <strong>Save Chat History</strong>
+                                <p>Automatically store chat sessions locally in browser.</p>
+                            </div>
+                            <input type="checkbox" id="saveHistoryToggle" checked>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>About JARVIS</h3>
+                        <div class="about-card">
+                            <div class="about-card-header">
+                                <img src="{{ url_for('static', filename='images/jarvis_logo.jpg') }}" alt="JARVIS Logo" class="about-logo-img">
+                                <div>
+                                    <strong>JARVIS &mdash; Your Personal AI Assistant</strong>
+                                    <p class="about-subtitle">Powered by Google Gemini API &bull; Built with Flask & Vanilla Web Technologies.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 
-<script>
-    document.getElementById("askForm").onsubmit = async (e) => {
-        e.preventDefault();
-        let formData = new FormData(e.target);
+    <!-- MODAL: RENAME CHAT -->
+    <div id="renameModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h3>Rename Conversation</h3>
+            <p class="modal-subtitle">Enter a new name for this chat session:</p>
+            <input type="text" id="renameChatInput" class="modal-input" placeholder="e.g. Python Error Help" maxlength="50">
+            <div class="modal-actions">
+                <button type="button" id="cancelRenameBtn" class="btn secondary-btn sm">Cancel</button>
+                <button type="button" id="confirmRenameBtn" class="btn primary-btn sm">Rename</button>
+            </div>
+        </div>
+    </div>
 
-        let loading = document.getElementById("ans-loading");
-        loading.style.display = "block";   // show loader
+    <!-- MODAL: DELETE CONFIRMATION -->
+    <div id="deleteModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h3>Delete Conversation?</h3>
+            <p class="modal-subtitle">Are you sure you want to delete this chat session? This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button type="button" id="cancelDeleteBtn" class="btn secondary-btn sm">Cancel</button>
+                <button type="button" id="confirmDeleteBtn" class="btn danger-btn sm">Delete</button>
+            </div>
+        </div>
+    </div>
 
-        let res = await fetch("/ask", {
-            method: "POST",
-            body: formData
-        });
+    <!-- MODAL: CLEAR CHAT CONFIRMATION -->
+    <div id="clearModal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <h3>Clear Messages?</h3>
+            <p class="modal-subtitle">Clear all messages from this conversation?</p>
+            <div class="modal-actions">
+                <button type="button" id="cancelClearBtn" class="btn secondary-btn sm">Cancel</button>
+                <button type="button" id="confirmClearBtn" class="btn danger-btn sm">Clear</button>
+            </div>
+        </div>
+    </div>
 
-        let data = await res.json();
-        document.getElementById("answer").innerText = data.answer;
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toastContainer" class="toast-container"></div>
 
-        loading.style.display = "none";   // hide loader
-    };
-
-document.getElementById("emailForm").onsubmit = async (e) => {
-    e.preventDefault();
-    let formData = new FormData(e.target);
-
-    let loading = document.getElementById("summary-loading");
-    loading.style.display = "block";
-
-    let res = await fetch("/summarize", {
-        method: "POST",
-        body: formData
-    });
-
-    let data = await res.json();
-    document.getElementById("summary").innerText = data.response;
-
-    loading.style.display = "none";   // hide loader
-};
-
-</script>
-
+    <!-- Pass logo URL to JS -->
+    <script>
+        window.JARVIS_LOGO_URL = "{{ url_for('static', filename='images/jarvis_logo.jpg') }}";
+    </script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
