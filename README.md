@@ -68,7 +68,6 @@ Secure user authentication using:
 
 - Flask Sessions
 - SQLite
-- Werkzeug password hashing
 - Login & Signup
 - Logout
 - User profile
@@ -80,10 +79,6 @@ Customize your JARVIS profile with:
 - Profile name
 - Profile avatar
 - Account information
-
-### 🎙️ Voice Input
-
-Use your microphone to interact with JARVIS using voice input.
 
 ### 🎨 Premium UI
 
@@ -153,7 +148,6 @@ Choose between available theme modes from Settings.
 - Flask
 - Google Gemini API
 - SQLite
-- Werkzeug
 
 ### Frontend
 
