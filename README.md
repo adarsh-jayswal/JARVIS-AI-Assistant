@@ -167,40 +167,6 @@ Choose between available theme modes from Settings.
 
 - Google Gemini
 
----
-
-## 📂 Project Structure
-
-JARVIS-AI-Assistant/
-│
-├── static/
-│   ├── css/
-│   ├── js/
-│   └── images/
-│       └── jarvis_logo.jpg
-│
-├── templates/
-│   ├── index.html
-│   ├── login.html
-│   └── signup.html
-│
-├── screenshots/
-│   ├── login.png
-│   ├── signup.png
-│   ├── chat.png
-│   ├── settings.png
-│   ├── email-summarizer.png
-│   ├── developer-mode.png
-│   └── notes.png
-│
-├── main.py
-├── requirements.txt
-├── .env.example
-├── .gitignore
-└── README.md
-
----
-
 ## 🤖 How JARVIS Helps
 
 JARVIS is designed to make everyday tasks easier, faster, and more organized with the help of AI.
@@ -237,11 +203,36 @@ JARVIS is built as a learning-focused project with the goal of continuously impr
 
 ---
 
-## 👨‍💻 Author
+## 📂 Project Structure
 
-**Adarsh Jayswal**
+```text
+JARVIS-AI-Assistant/
+│
+├── static/
+│   ├── css/
+│   ├── js/
+│   └── images/
+│       └── jarvis_logo.jpg
+│
+├── templates/
+│   ├── index.html
+│   ├── login.html
+│   └── signup.html
+│
+├── screenshots/
+│   ├── login.png
+│   ├── signup.png
+│   ├── chat.png
+│   ├── settings.png
+│   ├── email-summarizer.png
+│   ├── developer-mode.png
+│   └── notes.png
+│
+├── main.py
+├── requirements.txt
+├── .env.example
+├── .gitignore
+└── README.md
 
-Computer Science Student | AI & Full-Stack Development Enthusiast
 
-
-⭐ If you find this project interesting, consider giving it a star on GitHub!
+---
