@@ -171,7 +171,6 @@ Choose between available theme modes from Settings.
 
 ## 📂 Project Structure
 
-```text
 JARVIS-AI-Assistant/
 │
 ├── static/
@@ -199,6 +198,8 @@ JARVIS-AI-Assistant/
 ├── .env.example
 ├── .gitignore
 └── README.md
+
+---
 
 ## 🤖 How JARVIS Helps
 
@@ -242,8 +243,5 @@ JARVIS is built as a learning-focused project with the goal of continuously impr
 
 Computer Science Student | AI & Full-Stack Development Enthusiast
 
-GitHub: [@adarsh-jayswal](https://github.com/adarsh-jayswal)
-
----
 
 ⭐ If you find this project interesting, consider giving it a star on GitHub!
