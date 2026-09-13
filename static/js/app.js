@@ -165,6 +165,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const settingsLogoutBtn = document.getElementById("settingsLogoutBtn");
 
     async function handleLogout() {
+        stopSpeaking();
+        if (isListening && speechRecognition) {
+            try { speechRecognition.stop(); } catch (e) {}
+        }
         try {
             await fetch("/logout", { method: "POST" });
         } catch (e) {
@@ -213,8 +217,450 @@ document.addEventListener("DOMContentLoaded", async () => {
     let activeMode = "chat";
     let activeDevAction = "debug";
     let isProcessing = false;
-    let speechRecognition = null;
     let isListening = false;
+    let isSpeaking = false;
+    let speechRecognition = null;
+    let availableVoices = [];
+
+    // --- ASSISTANT STATUS BADGE UI ---
+    const assistantStatusBadge = document.getElementById("assistantStatusBadge");
+    const assistantStatusText = document.getElementById("assistantStatusText");
+
+    function setAssistantStatus(status) {
+        if (!assistantStatusBadge || !assistantStatusText) return;
+        
+        assistantStatusBadge.className = `assistant-status-badge ${status}`;
+        
+        if (status === "listening") {
+            assistantStatusText.textContent = "Listening...";
+        } else if (status === "thinking") {
+            assistantStatusText.textContent = "Thinking...";
+        } else if (status === "speaking") {
+            assistantStatusText.textContent = "Speaking...";
+        } else {
+            assistantStatusBadge.className = "assistant-status-badge idle";
+            assistantStatusText.textContent = "Ready";
+        }
+    }
+
+    // --- VOICE ASSISTANT SETTINGS STATE ---
+    const voiceSettings = {
+        responses: localStorage.getItem(getStorageKey("voice_responses")) || "off",
+        handsFree: localStorage.getItem(getStorageKey("hands_free")) || "off",
+        recLanguage: localStorage.getItem(getStorageKey("rec_language")) || "en-US",
+        voiceName: localStorage.getItem(getStorageKey("voice_name")) || "",
+        rate: parseFloat(localStorage.getItem(getStorageKey("voice_rate")) || "1.0"),
+        pitch: parseFloat(localStorage.getItem(getStorageKey("voice_pitch")) || "1.0"),
+        volume: parseFloat(localStorage.getItem(getStorageKey("voice_volume")) || "1.0")
+    };
+
+    // DOM ELEMENTS - VOICE SETTINGS
+    const voiceResponsesToggle = document.getElementById("voiceResponsesToggle");
+    const handsFreeToggle = document.getElementById("handsFreeToggle");
+    const recLanguageSelect = document.getElementById("recLanguageSelect");
+    const voiceSelect = document.getElementById("voiceSelect");
+    const voiceRateInput = document.getElementById("voiceRateInput");
+    const voiceRateValue = document.getElementById("voiceRateValue");
+    const voicePitchInput = document.getElementById("voicePitchInput");
+    const voicePitchValue = document.getElementById("voicePitchValue");
+    const voiceVolumeInput = document.getElementById("voiceVolumeInput");
+    const voiceVolumeValue = document.getElementById("voiceVolumeValue");
+    const testVoiceBtn = document.getElementById("testVoiceBtn");
+    const topStopSpeakBtn = document.getElementById("topStopSpeakBtn");
+
+    function initVoiceSettingsUI() {
+        if (voiceResponsesToggle) voiceResponsesToggle.value = voiceSettings.responses;
+        if (handsFreeToggle) handsFreeToggle.value = voiceSettings.handsFree;
+        if (recLanguageSelect) recLanguageSelect.value = voiceSettings.recLanguage;
+        
+        if (voiceRateInput) {
+            voiceRateInput.value = voiceSettings.rate;
+            if (voiceRateValue) voiceRateValue.textContent = voiceSettings.rate.toFixed(1);
+        }
+        if (voicePitchInput) {
+            voicePitchInput.value = voiceSettings.pitch;
+            if (voicePitchValue) voicePitchValue.textContent = voiceSettings.pitch.toFixed(1);
+        }
+        if (voiceVolumeInput) {
+            voiceVolumeInput.value = voiceSettings.volume;
+            if (voiceVolumeValue) voiceVolumeValue.textContent = voiceSettings.volume.toFixed(1);
+        }
+    }
+
+    initVoiceSettingsUI();
+
+    if (voiceResponsesToggle) {
+        voiceResponsesToggle.addEventListener("change", (e) => {
+            voiceSettings.responses = e.target.value;
+            localStorage.setItem(getStorageKey("voice_responses"), e.target.value);
+            showToast(`Voice responses turned ${e.target.value.toUpperCase()}`, "info");
+        });
+    }
+
+    if (handsFreeToggle) {
+        handsFreeToggle.addEventListener("change", (e) => {
+            voiceSettings.handsFree = e.target.value;
+            localStorage.setItem(getStorageKey("hands_free"), e.target.value);
+            showToast(`Hands-free mode turned ${e.target.value.toUpperCase()}`, "info");
+        });
+    }
+
+    if (recLanguageSelect) {
+        recLanguageSelect.addEventListener("change", (e) => {
+            voiceSettings.recLanguage = e.target.value;
+            localStorage.setItem(getStorageKey("rec_language"), e.target.value);
+            if (speechRecognition) {
+                speechRecognition.lang = e.target.value;
+            }
+            showToast(`Recognition language set to ${e.target.options[e.target.selectedIndex].text}`, "info");
+        });
+    }
+
+    if (voiceRateInput) {
+        voiceRateInput.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value);
+            voiceSettings.rate = val;
+            if (voiceRateValue) voiceRateValue.textContent = val.toFixed(1);
+            localStorage.setItem(getStorageKey("voice_rate"), val.toString());
+        });
+    }
+
+    if (voicePitchInput) {
+        voicePitchInput.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value);
+            voiceSettings.pitch = val;
+            if (voicePitchValue) voicePitchValue.textContent = val.toFixed(1);
+            localStorage.setItem(getStorageKey("voice_pitch"), val.toString());
+        });
+    }
+
+    if (voiceVolumeInput) {
+        voiceVolumeInput.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value);
+            voiceSettings.volume = val;
+            if (voiceVolumeValue) voiceVolumeValue.textContent = val.toFixed(1);
+            localStorage.setItem(getStorageKey("voice_volume"), val.toString());
+        });
+    }
+
+    if (voiceSelect) {
+        voiceSelect.addEventListener("change", (e) => {
+            voiceSettings.voiceName = e.target.value;
+            localStorage.setItem(getStorageKey("voice_name"), e.target.value);
+        });
+    }
+
+    // --- BROWSER VOICES LOADING & CATEGORIZATION ---
+    function categorizeVoice(voice) {
+        const name = (voice.name || "").toLowerCase();
+        if (name.includes("female") || name.includes("zira") || name.includes("samantha") || name.includes("victoria") || name.includes("karen") || name.includes("fiona") || name.includes("moira") || name.includes("veena") || name.includes("aria") || name.includes("jenny")) {
+            return "female";
+        }
+        if (name.includes("male") || name.includes("david") || name.includes("mark") || name.includes("alex") || name.includes("george") || name.includes("richard") || name.includes("ravi") || name.includes("guy") || name.includes("stefan")) {
+            return "male";
+        }
+        return "other";
+    }
+
+    function loadAvailableVoices() {
+        if (!('speechSynthesis' in window)) return;
+
+        availableVoices = window.speechSynthesis.getVoices() || [];
+        if (!voiceSelect) return;
+
+        voiceSelect.innerHTML = `<option value="">Default System Voice</option>`;
+
+        const femaleGroup = document.createElement("optgroup");
+        femaleGroup.label = "Female Voices";
+
+        const maleGroup = document.createElement("optgroup");
+        maleGroup.label = "Male Voices";
+
+        const otherGroup = document.createElement("optgroup");
+        otherGroup.label = "Other / System Voices";
+
+        availableVoices.forEach(v => {
+            const opt = document.createElement("option");
+            opt.value = v.name;
+            opt.textContent = `${v.name} (${v.lang})`;
+            if (v.name === voiceSettings.voiceName) {
+                opt.selected = true;
+            }
+
+            const cat = categorizeVoice(v);
+            if (cat === "female") {
+                femaleGroup.appendChild(opt);
+            } else if (cat === "male") {
+                maleGroup.appendChild(opt);
+            } else {
+                otherGroup.appendChild(opt);
+            }
+        });
+
+        if (femaleGroup.children.length > 0) voiceSelect.appendChild(femaleGroup);
+        if (maleGroup.children.length > 0) voiceSelect.appendChild(maleGroup);
+        if (otherGroup.children.length > 0) voiceSelect.appendChild(otherGroup);
+    }
+
+    if ('speechSynthesis' in window) {
+        loadAvailableVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = loadAvailableVoices;
+        }
+    }
+
+    // QUICK VOICE PROFILE PRESET PILLS
+    const voiceProfilePills = document.querySelectorAll(".voice-profile-pill");
+    voiceProfilePills.forEach(pill => {
+        pill.addEventListener("click", () => {
+            const profile = pill.getAttribute("data-profile");
+            voiceProfilePills.forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+
+            if (profile === "system") {
+                voiceSettings.voiceName = "";
+                voiceSettings.rate = 1.0;
+                voiceSettings.pitch = 1.0;
+                voiceSettings.volume = 1.0;
+                if (voiceSelect) voiceSelect.value = "";
+                showToast("Applied System Voice profile", "info");
+            } else if (profile === "female") {
+                const femaleVoice = availableVoices.find(v => categorizeVoice(v) === "female");
+                if (femaleVoice) {
+                    voiceSettings.voiceName = femaleVoice.name;
+                    if (voiceSelect) voiceSelect.value = femaleVoice.name;
+                    showToast(`Applied Female Voice: ${femaleVoice.name}`, "info");
+                } else {
+                    showToast("No explicit female voice found. Using system default.", "info");
+                }
+            } else if (profile === "male") {
+                const maleVoice = availableVoices.find(v => categorizeVoice(v) === "male");
+                if (maleVoice) {
+                    voiceSettings.voiceName = maleVoice.name;
+                    if (voiceSelect) voiceSelect.value = maleVoice.name;
+                    showToast(`Applied Male Voice: ${maleVoice.name}`, "info");
+                } else {
+                    showToast("No explicit male voice found. Using system default.", "info");
+                }
+            }
+
+            if (voiceRateInput) {
+                voiceRateInput.value = voiceSettings.rate;
+                if (voiceRateValue) voiceRateValue.textContent = voiceSettings.rate.toFixed(1);
+            }
+            if (voicePitchInput) {
+                voicePitchInput.value = voiceSettings.pitch;
+                if (voicePitchValue) voicePitchValue.textContent = voiceSettings.pitch.toFixed(1);
+            }
+            if (voiceVolumeInput) {
+                voiceVolumeInput.value = voiceSettings.volume;
+                if (voiceVolumeValue) voiceVolumeValue.textContent = voiceSettings.volume.toFixed(1);
+            }
+
+            localStorage.setItem(getStorageKey("voice_name"), voiceSettings.voiceName);
+            localStorage.setItem(getStorageKey("voice_rate"), voiceSettings.rate.toString());
+            localStorage.setItem(getStorageKey("voice_pitch"), voiceSettings.pitch.toString());
+            localStorage.setItem(getStorageKey("voice_volume"), voiceSettings.volume.toString());
+        });
+    });
+
+    // --- TEXT TO SPEECH ENGINE (TTS) ---
+    function cleanTextForSpeech(rawText) {
+        if (!rawText) return "";
+        let clean = rawText;
+        // Remove code blocks
+        clean = clean.replace(/```[\s\S]*?```/g, " code snippet omitted ");
+        // Remove inline code
+        clean = clean.replace(/`([^`]+)`/g, "$1");
+        // Remove markdown headings & formatting
+        clean = clean.replace(/^###?\s+/gm, "");
+        clean = clean.replace(/\*\*(.*?)\*\*/g, "$1");
+        clean = clean.replace(/\*([^\*]+)\*/g, "$1");
+        clean = clean.replace(/\[(.*?)\]\(.*?\)/g, "$1");
+        // Clean multiple newlines/spaces
+        clean = clean.replace(/[\n\r]+/g, ". ").replace(/\s+/g, " ").trim();
+        return clean;
+    }
+
+    function speakResponse(rawText, onEndCallback = null) {
+        if (!('speechSynthesis' in window)) {
+            showToast("Text-to-speech isn't supported in this browser.", "error");
+            return;
+        }
+
+        stopSpeaking();
+
+        const textToSpeak = cleanTextForSpeech(rawText);
+        if (!textToSpeak) return;
+
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.rate = voiceSettings.rate;
+        utterance.pitch = voiceSettings.pitch;
+        utterance.volume = voiceSettings.volume;
+
+        // Select Voice
+        if (availableVoices.length === 0) {
+            availableVoices = window.speechSynthesis.getVoices() || [];
+        }
+
+        if (/[\u0900-\u097F]/.test(textToSpeak) || (voiceSettings.recLanguage || "").startsWith("hi")) {
+            utterance.lang = "hi-IN";
+            if (!voiceSettings.voiceName) {
+                const hiVoice = availableVoices.find(v => v.lang.toLowerCase().startsWith("hi") || v.name.toLowerCase().includes("hindi") || v.name.toLowerCase().includes("hi-in"));
+                if (hiVoice) utterance.voice = hiVoice;
+            }
+        }
+
+        if (!utterance.voice && voiceSettings.voiceName) {
+            const chosen = availableVoices.find(v => v.name === voiceSettings.voiceName);
+            if (chosen) utterance.voice = chosen;
+        } else if (!utterance.voice) {
+            // Auto select natural English or selected language voice if possible
+            const langCode = voiceSettings.recLanguage || "en-US";
+            const matchLang = availableVoices.find(v => v.lang.toLowerCase().startsWith(langCode.substring(0, 2).toLowerCase()));
+            if (matchLang) utterance.voice = matchLang;
+        }
+
+        utterance.onstart = () => {
+            isSpeaking = true;
+            setAssistantStatus("speaking");
+            if (topStopSpeakBtn) topStopSpeakBtn.style.display = "inline-flex";
+        };
+
+        utterance.onend = () => {
+            isSpeaking = false;
+            setAssistantStatus("idle");
+            if (topStopSpeakBtn) topStopSpeakBtn.style.display = "none";
+            if (onEndCallback && typeof onEndCallback === "function") {
+                onEndCallback();
+            }
+        };
+
+        utterance.onerror = (err) => {
+            console.warn("Speech synthesis error:", err);
+            isSpeaking = false;
+            setAssistantStatus("idle");
+            if (topStopSpeakBtn) topStopSpeakBtn.style.display = "none";
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function stopSpeaking() {
+        if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+        }
+        isSpeaking = false;
+        setAssistantStatus("idle");
+        if (topStopSpeakBtn) topStopSpeakBtn.style.display = "none";
+    }
+
+    if (topStopSpeakBtn) {
+        topStopSpeakBtn.addEventListener("click", () => {
+            stopSpeaking();
+            showToast("Speech stopped", "info");
+        });
+    }
+
+    if (testVoiceBtn) {
+        testVoiceBtn.addEventListener("click", () => {
+            const isHindi = (voiceSettings.recLanguage || "").startsWith("hi");
+            const testMsg = isHindi
+                ? "नमस्ते। मैं JARVIS हूँ, आपका व्यक्तिगत AI assistant."
+                : "Hello. I am JARVIS, your personal AI assistant.";
+            speakResponse(testMsg);
+        });
+    }
+
+    // --- SPEECH TO TEXT ENGINE (STT) ---
+    const micBtn = document.getElementById("micBtn");
+    const chatInput = document.getElementById("chatInput");
+
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        speechRecognition = new SpeechRec();
+        speechRecognition.continuous = false;
+        speechRecognition.interimResults = false;
+        speechRecognition.lang = voiceSettings.recLanguage;
+
+        speechRecognition.onstart = () => {
+            isListening = true;
+            setAssistantStatus("listening");
+            if (micBtn) {
+                micBtn.classList.add("listening");
+                micBtn.title = "Listening... Click to stop listening";
+                micBtn.setAttribute("aria-label", "Stop listening");
+            }
+        };
+
+        speechRecognition.onresult = (e) => {
+            const transcript = e.results[0][0].transcript;
+            if (chatInput && transcript) {
+                chatInput.value = (chatInput.value ? chatInput.value + " " + transcript : transcript).trim();
+                autoResizeInput();
+            }
+
+            // Auto-submit if Hands-Free Mode is ON
+            if (voiceSettings.handsFree === "on" && chatForm && chatInput.value.trim()) {
+                setTimeout(() => {
+                    chatForm.requestSubmit();
+                }, 300);
+            }
+        };
+
+        speechRecognition.onerror = (e) => {
+            console.warn("Speech recognition error:", e.error);
+            stopListening();
+
+            let errorMsg = "Speech recognition encountered an error.";
+            if (e.error === "not-allowed" || e.error === "permission-denied") {
+                errorMsg = "Microphone permission denied. Please allow microphone access in browser settings.";
+            } else if (e.error === "no-speech") {
+                errorMsg = "No speech detected. Please try speaking again.";
+            } else if (e.error === "network") {
+                errorMsg = "Speech recognition network error.";
+            }
+
+            showToast(errorMsg, "error");
+        };
+
+        speechRecognition.onend = () => {
+            stopListening();
+        };
+
+        if (micBtn) {
+            micBtn.addEventListener("click", () => {
+                stopSpeaking();
+                if (isListening) {
+                    speechRecognition.stop();
+                } else {
+                    speechRecognition.lang = voiceSettings.recLanguage;
+                    try {
+                        speechRecognition.start();
+                    } catch (err) {
+                        console.warn("Speech recognition start failed:", err);
+                        stopListening();
+                    }
+                }
+            });
+        }
+    } else if (micBtn) {
+        micBtn.addEventListener("click", () => {
+            showToast("Voice input is not supported in this browser. Please try Chrome or Edge.", "error");
+        });
+    }
+
+    function stopListening() {
+        isListening = false;
+        if (micBtn) {
+            micBtn.classList.remove("listening");
+            micBtn.title = "Use Voice Input (Speech-to-Text)";
+            micBtn.setAttribute("aria-label", "Start voice input");
+        }
+        if (!isProcessing && !isSpeaking) {
+            setAssistantStatus("idle");
+        }
+    }
 
     // --- MULTI-CONVERSATION ENGINE ---
     let chats = [];
@@ -231,7 +677,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         const savedActiveId = localStorage.getItem(getStorageKey("active_chat"));
 
         if (chats.length === 0) {
-            // Create initial fresh chat
             createNewChat(false);
         } else {
             const exists = chats.find(c => c.id === savedActiveId);
@@ -249,6 +694,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function createNewChat(notify = true) {
+        stopSpeaking();
         const newChat = {
             id: `chat_${Date.now()}`,
             title: "New Conversation",
@@ -331,6 +777,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     function selectChat(chatId) {
+        stopSpeaking();
         activeChatId = chatId;
         saveChatsToStorage();
         renderSidebarChats();
@@ -342,9 +789,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const activeChat = chats.find(c => c.id === activeChatId);
         if (!activeChat) return;
 
-        // Update Top Bar View Title
+        const viewTitle = document.getElementById("viewTitle");
         if (viewTitle) {
-            viewTitle.textContent = activeChat.title === "New Conversation" ? "JARVIS Chat" : activeChat.title;
+            viewTitle.textContent = activeChat.title === "New Conversation" ? "Chat" : activeChat.title;
         }
 
         const messageList = document.getElementById("messageList");
@@ -413,6 +860,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     chat.updatedAt = new Date().toISOString();
                     saveChatsToStorage();
                     renderSidebarChats();
+                    const viewTitle = document.getElementById("viewTitle");
                     if (targetRenameChatId === activeChatId && viewTitle) {
                         viewTitle.textContent = newTitle;
                     }
@@ -442,6 +890,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener("click", () => {
+            stopSpeaking();
             if (targetDeleteChatId) {
                 chats = chats.filter(c => c.id !== targetDeleteChatId);
 
@@ -480,6 +929,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (confirmClearBtn) {
         confirmClearBtn.addEventListener("click", () => {
+            stopSpeaking();
             const activeChat = chats.find(c => c.id === activeChatId);
             if (activeChat) {
                 activeChat.messages = [];
@@ -529,15 +979,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     const mobileMenuBtn = document.getElementById("mobileMenuBtn");
     const navItems = document.querySelectorAll(".nav-item[data-view]");
     const viewPanels = document.querySelectorAll(".view-panel");
-    const viewTitle = document.getElementById("viewTitle");
 
     const viewTitles = {
-        chatView: "JARVIS Chat",
+        chatView: "Chat",
         summarizeView: "Email Summarizer",
         developerView: "Developer Mode",
         notesView: "Notes & Task Assistant",
         historyView: "Conversation History",
-        settingsView: "JARVIS Settings"
+        settingsView: "JARVIS Settings",
+        documentsView: "Document Assistant",
+        webSearchView: "Web Search"
     };
 
     if (sidebarToggleBtn) {
@@ -561,6 +1012,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     function switchView(viewId) {
+        stopSpeaking();
         navItems.forEach(nav => {
             if (nav.getAttribute("data-view") === viewId) {
                 nav.classList.add("active");
@@ -579,17 +1031,23 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
 
+        const viewTitle = document.getElementById("viewTitle");
         if (viewId === "chatView") {
             const activeChat = chats.find(c => c.id === activeChatId);
             if (viewTitle) {
-                viewTitle.textContent = (activeChat && activeChat.title !== "New Conversation") ? activeChat.title : "JARVIS Chat";
+                viewTitle.textContent = (activeChat && activeChat.title !== "New Conversation") ? activeChat.title : "Chat";
             }
         } else if (viewTitles[viewId]) {
-            viewTitle.textContent = viewTitles[viewId];
+            if (viewTitle) viewTitle.textContent = viewTitles[viewId];
         }
 
         if (viewId === "historyView") renderHistoryView();
         if (viewId === "notesView") loadNotes();
+        if (viewId === "documentsView") loadUserDocuments();
+        if (viewId === "webSearchView") {
+            const searchInput = document.getElementById("webSearchInput");
+            if (searchInput) searchInput.focus();
+        }
     }
 
     // --- CHAT MODE PILLS ---
@@ -615,7 +1073,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // --- CHAT COMPOSER & AUTO-RESIZE ---
-    const chatInput = document.getElementById("chatInput");
     const chatForm = document.getElementById("chatForm");
     const sendBtn = document.getElementById("sendBtn");
     const chatContainer = document.getElementById("chatContainer");
@@ -655,60 +1112,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
 
-    // --- VOICE INPUT (WEB SPEECH API) ---
-    const micBtn = document.getElementById("micBtn");
-    if (micBtn && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        speechRecognition = new SpeechRec();
-        speechRecognition.continuous = false;
-        speechRecognition.interimResults = false;
-        speechRecognition.lang = 'en-US';
-
-        speechRecognition.onstart = () => {
-            isListening = true;
-            micBtn.classList.add("listening");
-            micBtn.title = "Listening... Speak now";
-        };
-
-        speechRecognition.onresult = (e) => {
-            const transcript = e.results[0][0].transcript;
-            if (chatInput) {
-                chatInput.value = (chatInput.value + " " + transcript).trim();
-                autoResizeInput();
-            }
-        };
-
-        speechRecognition.onerror = (e) => {
-            console.warn("Speech recognition error:", e.error);
-            stopListening();
-        };
-
-        speechRecognition.onend = () => {
-            stopListening();
-        };
-
-        micBtn.addEventListener("click", () => {
-            if (isListening) {
-                speechRecognition.stop();
-            } else {
-                speechRecognition.start();
-            }
-        });
-    } else if (micBtn) {
-        micBtn.addEventListener("click", () => {
-            showToast("Voice input isn't supported in this browser.", "error");
-        });
-    }
-
-    function stopListening() {
-        isListening = false;
-        if (micBtn) {
-            micBtn.classList.remove("listening");
-            micBtn.title = "Voice Input (Speech-to-Text)";
-        }
-    }
-
-    // --- CHAT SUBMISSION ---
+    // --- CHAT SUBMISSION & AI RESPONSE ---
     if (chatForm) {
         chatForm.addEventListener("submit", async (e) => {
             e.preventDefault();
@@ -720,6 +1124,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     async function sendMessage(text) {
+        stopSpeaking();
         const activeChat = chats.find(c => c.id === activeChatId);
         if (!activeChat) return;
 
@@ -734,6 +1139,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (activeChat.title === "New Conversation") {
             const titleText = text.length > 32 ? text.substring(0, 32) + "..." : text;
             activeChat.title = titleText;
+            const viewTitle = document.getElementById("viewTitle");
             if (viewTitle) viewTitle.textContent = titleText;
         }
 
@@ -745,6 +1151,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         chatInput.style.height = "auto";
 
         setProcessing(true);
+        setAssistantStatus("thinking");
         showTypingIndicator(true);
 
         try {
@@ -765,13 +1172,29 @@ document.addEventListener("DOMContentLoaded", async () => {
                 activeChat.updatedAt = new Date().toISOString();
                 saveChatsToStorage();
                 renderSidebarChats();
+
+                setAssistantStatus("idle");
+
+                // Auto speak if Voice Responses is ON
+                if (voiceSettings.responses === "on") {
+                    speakResponse(data.answer, () => {
+                        // If Hands-Free Mode is also ON, automatically start listening after speech finishes!
+                        if (voiceSettings.handsFree === "on" && speechRecognition && !isListening) {
+                            setTimeout(() => {
+                                try { speechRecognition.start(); } catch (e) {}
+                            }, 500);
+                        }
+                    });
+                }
             } else {
+                setAssistantStatus("idle");
                 const errorMsg = data.error || "Something went wrong while contacting JARVIS. Please try again.";
                 appendMessageUI({ role: "assistant", text: `⚠️ ${errorMsg}`, isError: true, time: getCurrentTime() });
             }
         } catch (err) {
             console.error("Fetch error:", err);
             showTypingIndicator(false);
+            setAssistantStatus("idle");
             appendMessageUI({ role: "assistant", text: "⚠️ Network connection error. Please try again.", isError: true, time: getCurrentTime() });
         } finally {
             setProcessing(false);
@@ -795,8 +1218,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             const actions = document.createElement("div");
             actions.classList.add("message-actions");
 
+            // Copy Action Button
             const copyBtn = document.createElement("button");
             copyBtn.classList.add("action-chip");
+            copyBtn.setAttribute("aria-label", "Copy message");
             copyBtn.textContent = "📋 Copy";
             copyBtn.addEventListener("click", () => {
                 navigator.clipboard.writeText(msg.text);
@@ -805,8 +1230,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                 setTimeout(() => copyBtn.textContent = "📋 Copy", 2000);
             });
 
+            // Regenerate Action Button
             const regenBtn = document.createElement("button");
             regenBtn.classList.add("action-chip");
+            regenBtn.setAttribute("aria-label", "Regenerate response");
             regenBtn.textContent = "🔄 Regenerate";
             regenBtn.addEventListener("click", () => {
                 const activeChat = chats.find(c => c.id === activeChatId);
@@ -820,8 +1247,28 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
             });
 
+            // Speak Action Button
+            const speakBtn = document.createElement("button");
+            speakBtn.classList.add("action-chip", "speak-btn");
+            speakBtn.setAttribute("aria-label", "Speak response aloud");
+            speakBtn.innerHTML = `🔊 Speak`;
+            speakBtn.addEventListener("click", () => {
+                speakResponse(msg.text);
+            });
+
+            // Stop Action Button
+            const stopBtn = document.createElement("button");
+            stopBtn.classList.add("action-chip", "stop-btn");
+            stopBtn.setAttribute("aria-label", "Stop speaking");
+            stopBtn.innerHTML = `■ Stop`;
+            stopBtn.addEventListener("click", () => {
+                stopSpeaking();
+            });
+
             actions.appendChild(copyBtn);
             actions.appendChild(regenBtn);
+            actions.appendChild(speakBtn);
+            actions.appendChild(stopBtn);
             group.appendChild(bubble);
             group.appendChild(actions);
         }
@@ -906,6 +1353,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (clearAllHistoryBtn) {
         clearAllHistoryBtn.addEventListener("click", () => {
             if (confirm("Are you sure you want to delete all chat history?")) {
+                stopSpeaking();
                 chats = [];
                 createNewChat(false);
                 renderHistoryView();
@@ -1212,5 +1660,627 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (inList) html += inList === 'ul' ? '</ul>' : '</ol>';
         return html;
+    }
+
+    // --- FEATURE 1: DOCUMENTS MANAGEMENT & DOCUMENT CHAT ---
+    let userDocuments = [];
+    let activeDocumentId = null;
+
+    const docFileInput = document.getElementById("docFileInput");
+    const triggerUploadBtn = document.getElementById("triggerUploadBtn");
+    const uploadDropzone = document.getElementById("uploadDropzone");
+    const documentsGrid = document.getElementById("documentsGrid");
+    const docCountBadge = document.getElementById("docCountBadge");
+    const docChatContainer = document.getElementById("docChatContainer");
+    const activeDocName = document.getElementById("activeDocName");
+    const closeDocChatBtn = document.getElementById("closeDocChatBtn");
+    const docChatForm = document.getElementById("docChatForm");
+    const docChatInput = document.getElementById("docChatInput");
+    const docMessageList = document.getElementById("docMessageList");
+    const docMicBtn = document.getElementById("docMicBtn");
+
+    function formatFileSize(bytes) {
+        if (!bytes) return "0 B";
+        const k = 1024;
+        const sizes = ["B", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    }
+
+    async function loadUserDocuments() {
+        if (!documentsGrid) return;
+        try {
+            const res = await fetch("/api/documents");
+            if (res.ok) {
+                const data = await res.json();
+                userDocuments = data.documents || [];
+                renderDocumentsGrid();
+            } else {
+                showToast("Failed to load documents", "error");
+            }
+        } catch (e) {
+            console.error("Error loading documents:", e);
+        }
+    }
+
+    function renderDocumentsGrid() {
+        if (!documentsGrid) return;
+
+        if (docCountBadge) {
+            docCountBadge.textContent = `${userDocuments.length} Document${userDocuments.length === 1 ? '' : 's'}`;
+        }
+
+        if (userDocuments.length === 0) {
+            documentsGrid.innerHTML = `
+                <div class="doc-empty-state">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                    <p>No documents uploaded yet. Upload a PDF, TXT, or DOCX document above to start asking questions!</p>
+                </div>
+            `;
+            return;
+        }
+
+        documentsGrid.innerHTML = "";
+        userDocuments.forEach(doc => {
+            const card = document.createElement("div");
+            card.className = `doc-card ${doc.id === activeDocumentId ? 'active-doc' : ''}`;
+
+            const fileExt = (doc.file_type || "DOC").toUpperCase();
+            const formattedSize = formatFileSize(doc.file_size);
+
+            card.innerHTML = `
+                <div class="doc-card-header">
+                    <div class="doc-icon-badge">${escapeHtml(fileExt)}</div>
+                    <div class="doc-info">
+                        <h4 title="${escapeHtml(doc.original_filename)}">${escapeHtml(doc.original_filename)}</h4>
+                        <p>${formattedSize} &bull; ${escapeHtml(doc.uploaded_at || 'Recently')}</p>
+                    </div>
+                </div>
+                <div class="doc-card-actions">
+                    <button type="button" class="btn primary-btn sm ask-doc-btn" style="flex:1;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        <span>Ask JARVIS</span>
+                    </button>
+                    <button type="button" class="btn danger-btn sm delete-doc-btn" title="Delete Document">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            `;
+
+            card.querySelector(".ask-doc-btn").addEventListener("click", () => {
+                openDocChat(doc);
+            });
+
+            card.querySelector(".delete-doc-btn").addEventListener("click", (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete "${doc.original_filename}"?`)) {
+                    deleteDocument(doc.id);
+                }
+            });
+
+            documentsGrid.appendChild(card);
+        });
+    }
+
+    if (triggerUploadBtn && docFileInput) {
+        triggerUploadBtn.addEventListener("click", () => docFileInput.click());
+    }
+
+    if (uploadDropzone && docFileInput) {
+        uploadDropzone.addEventListener("click", (e) => {
+            if (e.target !== triggerUploadBtn && !triggerUploadBtn.contains(e.target)) {
+                docFileInput.click();
+            }
+        });
+    }
+
+    if (docFileInput) {
+        docFileInput.addEventListener("change", async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const allowed = ["pdf", "txt", "docx"];
+            const ext = file.name.split('.').pop().toLowerCase();
+
+            if (!allowed.includes(ext)) {
+                showToast("Unsupported file format. Please select a PDF, TXT, or DOCX file.", "error");
+                docFileInput.value = "";
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                showToast("File size exceeds 10MB limit.", "error");
+                docFileInput.value = "";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            showToast("Uploading and processing document...", "info");
+
+            try {
+                const res = await fetch("/api/documents/upload", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    showToast("Document uploaded successfully!", "success");
+                    docFileInput.value = "";
+                    await loadUserDocuments();
+                    if (data.document) {
+                        openDocChat(data.document);
+                    }
+                } else {
+                    showToast(data.error || "Failed to upload document", "error");
+                }
+            } catch (err) {
+                console.error("Document upload error:", err);
+                showToast("Network error uploading document.", "error");
+            } finally {
+                docFileInput.value = "";
+            }
+        });
+    }
+
+    async function deleteDocument(docId) {
+        try {
+            const res = await fetch(`/api/documents/${docId}`, { method: "DELETE" });
+            if (res.ok) {
+                showToast("Document deleted", "info");
+                if (activeDocumentId === docId) {
+                    closeDocChat();
+                }
+                await loadUserDocuments();
+            } else {
+                const data = await res.json();
+                showToast(data.error || "Failed to delete document", "error");
+            }
+        } catch (e) {
+            console.error("Error deleting doc:", e);
+        }
+    }
+
+    const activeDocMeta = document.getElementById("activeDocMeta");
+
+    function openDocChat(doc) {
+        activeDocumentId = doc.id;
+        if (activeDocName) activeDocName.textContent = doc.original_filename;
+        if (activeDocMeta) {
+            const ext = (doc.file_type || "DOC").toUpperCase();
+            const sizeStr = formatFileSize(doc.file_size);
+            activeDocMeta.textContent = `${ext} • ${sizeStr}`;
+        }
+        if (docChatContainer) docChatContainer.style.display = "flex";
+        if (docMessageList) {
+            docMessageList.innerHTML = "";
+            appendDocChatMessage("assistant", `I have loaded **${doc.original_filename}**. Ask me any question about this document!`);
+        }
+        renderDocumentsGrid();
+        if (docChatInput) {
+            docChatInput.style.height = "auto";
+            docChatInput.focus();
+        }
+    }
+
+    function closeDocChat() {
+        activeDocumentId = null;
+        if (docChatContainer) docChatContainer.style.display = "none";
+        renderDocumentsGrid();
+    }
+
+    if (closeDocChatBtn) {
+        closeDocChatBtn.addEventListener("click", closeDocChat);
+    }
+
+    if (docChatInput) {
+        docChatInput.addEventListener("input", () => {
+            docChatInput.style.height = "auto";
+            docChatInput.style.height = Math.min(docChatInput.scrollHeight, 160) + "px";
+        });
+
+        docChatInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (docChatForm && docChatInput.value.trim()) {
+                    docChatForm.requestSubmit();
+                }
+            }
+        });
+    }
+
+    if (docChatForm) {
+        docChatForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if (!activeDocumentId || !docChatInput) return;
+
+            const question = docChatInput.value.trim();
+            if (!question) return;
+
+            stopSpeaking();
+            appendDocChatMessage("user", question);
+            docChatInput.value = "";
+            docChatInput.style.height = "auto";
+
+            setAssistantStatus("thinking");
+
+            const loadingGroup = appendDocChatMessage("assistant", "Analyzing document...", false, true);
+
+            try {
+                const res = await fetch(`/api/documents/${activeDocumentId}/ask`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ question: question })
+                });
+
+                const data = await res.json();
+                setAssistantStatus("idle");
+
+                if (res.ok && data.answer) {
+                    updateDocAssistantMessage(loadingGroup, data.answer);
+                    if (voiceSettings.responses === "on") {
+                        speakResponse(data.answer);
+                    }
+                } else {
+                    updateDocAssistantMessage(loadingGroup, `⚠️ ${data.error || "Failed to process question."}`, true);
+                }
+            } catch (err) {
+                setAssistantStatus("idle");
+                console.error("Error asking doc:", err);
+                updateDocAssistantMessage(loadingGroup, "⚠️ Network connection error analyzing document.", true);
+            }
+        });
+    }
+
+    function appendDocChatMessage(role, text, isError = false, isLoading = false) {
+        if (!docMessageList) return;
+
+        const group = document.createElement("div");
+        group.classList.add("message-group", role);
+        if (isError) group.classList.add("error-message");
+
+        const bubble = document.createElement("div");
+        bubble.classList.add("message-bubble");
+
+        if (role === "user") {
+            bubble.textContent = text;
+            group.appendChild(bubble);
+        } else {
+            bubble.innerHTML = renderMarkdown(text);
+            group.appendChild(bubble);
+
+            if (!isLoading) {
+                const actions = document.createElement("div");
+                actions.classList.add("message-actions");
+
+                const copyBtn = document.createElement("button");
+                copyBtn.classList.add("action-chip");
+                copyBtn.textContent = "📋 Copy";
+                copyBtn.addEventListener("click", () => {
+                    navigator.clipboard.writeText(text);
+                    copyBtn.textContent = "✓ Copied";
+                    showToast("Copied to clipboard", "success");
+                    setTimeout(() => copyBtn.textContent = "📋 Copy", 2000);
+                });
+
+                const speakBtn = document.createElement("button");
+                speakBtn.classList.add("action-chip", "speak-btn");
+                speakBtn.textContent = "🔊 Speak";
+                speakBtn.addEventListener("click", () => {
+                    speakResponse(text);
+                });
+
+                actions.appendChild(copyBtn);
+                actions.appendChild(speakBtn);
+                group.appendChild(actions);
+            }
+        }
+
+        docMessageList.appendChild(group);
+        docMessageList.scrollTop = docMessageList.scrollHeight;
+        return group;
+    }
+
+    function updateDocAssistantMessage(group, text, isError = false) {
+        if (!group) return;
+        if (isError) group.classList.add("error-message");
+
+        const bubble = group.querySelector(".message-bubble");
+        if (bubble) {
+            bubble.innerHTML = renderMarkdown(text);
+        }
+
+        let actions = group.querySelector(".message-actions");
+        if (!actions) {
+            actions = document.createElement("div");
+            actions.classList.add("message-actions");
+
+            const copyBtn = document.createElement("button");
+            copyBtn.classList.add("action-chip");
+            copyBtn.textContent = "📋 Copy";
+            copyBtn.addEventListener("click", () => {
+                navigator.clipboard.writeText(text);
+                copyBtn.textContent = "✓ Copied";
+                showToast("Copied to clipboard", "success");
+                setTimeout(() => copyBtn.textContent = "📋 Copy", 2000);
+            });
+
+            const speakBtn = document.createElement("button");
+            speakBtn.classList.add("action-chip", "speak-btn");
+            speakBtn.textContent = "🔊 Speak";
+            speakBtn.addEventListener("click", () => {
+                speakResponse(text);
+            });
+
+            actions.appendChild(copyBtn);
+            actions.appendChild(speakBtn);
+            group.appendChild(actions);
+        }
+
+        if (docMessageList) {
+            docMessageList.scrollTop = docMessageList.scrollHeight;
+        }
+    }
+
+    if (docMicBtn && speechRecognition) {
+        docMicBtn.addEventListener("click", () => {
+            stopSpeaking();
+            if (isListening) {
+                speechRecognition.stop();
+            } else {
+                speechRecognition.onresult = (e) => {
+                    const transcript = e.results[0][0].transcript;
+                    if (docChatInput && transcript) {
+                        docChatInput.value = transcript;
+                        docChatInput.style.height = "auto";
+                        docChatInput.style.height = Math.min(docChatInput.scrollHeight, 160) + "px";
+                    }
+                };
+                speechRecognition.start();
+            }
+        });
+    }
+
+
+    // --- FEATURE 2: REAL WEB SEARCH (CONVERSATIONAL CHAT ENGINE) ---
+    const webSearchForm = document.getElementById("webSearchForm");
+    const webSearchInput = document.getElementById("webSearchInput");
+    const webMessageList = document.getElementById("webMessageList");
+    const webMicBtn = document.getElementById("webMicBtn");
+
+    if (webSearchInput) {
+        webSearchInput.addEventListener("input", () => {
+            webSearchInput.style.height = "auto";
+            webSearchInput.style.height = Math.min(webSearchInput.scrollHeight, 160) + "px";
+        });
+
+        webSearchInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (webSearchForm && webSearchInput.value.trim()) {
+                    webSearchForm.requestSubmit();
+                }
+            }
+        });
+    }
+
+    if (webSearchForm) {
+        webSearchForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if (!webSearchInput) return;
+
+            const query = webSearchInput.value.trim();
+            if (!query) return;
+
+            stopSpeaking();
+            appendWebChatMessage("user", query);
+            webSearchInput.value = "";
+            webSearchInput.style.height = "auto";
+
+            setAssistantStatus("thinking");
+            const loadingGroup = appendWebChatMessage("assistant", "🔎 Searching the web...", [], false, true);
+
+            try {
+                const res = await fetch("/api/web-search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const data = await res.json();
+                setAssistantStatus("idle");
+
+                if (res.ok && data.answer) {
+                    updateWebAssistantMessage(loadingGroup, data.answer, data.results || []);
+                    if (voiceSettings.responses === "on") {
+                        speakResponse(data.answer);
+                    }
+                } else {
+                    updateWebAssistantMessage(loadingGroup, `⚠️ ${data.error || "Web search request failed."}`, [], true);
+                }
+            } catch (err) {
+                setAssistantStatus("idle");
+                console.error("Web search error:", err);
+                updateWebAssistantMessage(loadingGroup, "⚠️ Network connection error performing web search.", [], true);
+            }
+        });
+    }
+
+    function appendWebChatMessage(role, text, sources = [], isError = false, isLoading = false) {
+        if (!webMessageList) return;
+
+        const welcomeCard = webMessageList.querySelector(".web-search-welcome");
+        if (welcomeCard) welcomeCard.style.display = "none";
+
+        const group = document.createElement("div");
+        group.classList.add("message-group", role);
+        if (isError) group.classList.add("error-message");
+
+        const bubble = document.createElement("div");
+        bubble.classList.add("message-bubble");
+
+        if (role === "user") {
+            bubble.textContent = text;
+            group.appendChild(bubble);
+        } else {
+            bubble.innerHTML = renderMarkdown(text);
+            
+            if (sources && sources.length > 0) {
+                const sourcesDiv = document.createElement("div");
+                sourcesDiv.classList.add("web-sources-attached");
+                
+                let sourcesHTML = `<div class="web-sources-attached-header">Attached Sources (${sources.length})</div><div class="web-sources-attached-grid">`;
+                sources.forEach(src => {
+                    sourcesHTML += `
+                        <div class="source-card">
+                            <div>
+                                <span class="source-domain-badge">${escapeHtml(src.domain || 'WEB')}</span>
+                                <h4 class="source-card-title">${escapeHtml(src.title)}</h4>
+                                <p class="source-card-snippet">${escapeHtml(src.snippet)}</p>
+                            </div>
+                            ${src.url ? `<a href="${escapeHtml(src.url)}" target="_blank" rel="noopener noreferrer" class="btn secondary-btn sm source-open-btn">
+                                <span>Open Source</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>` : ''}
+                        </div>
+                    `;
+                });
+                sourcesHTML += `</div>`;
+                sourcesDiv.innerHTML = sourcesHTML;
+                bubble.appendChild(sourcesDiv);
+            }
+
+            group.appendChild(bubble);
+
+            if (!isLoading) {
+                const actions = document.createElement("div");
+                actions.classList.add("message-actions");
+
+                const copyBtn = document.createElement("button");
+                copyBtn.classList.add("action-chip");
+                copyBtn.textContent = "📋 Copy";
+                copyBtn.addEventListener("click", () => {
+                    navigator.clipboard.writeText(text);
+                    copyBtn.textContent = "✓ Copied";
+                    showToast("Copied to clipboard", "success");
+                    setTimeout(() => copyBtn.textContent = "📋 Copy", 2000);
+                });
+
+                const speakBtn = document.createElement("button");
+                speakBtn.classList.add("action-chip", "speak-btn");
+                speakBtn.textContent = "🔊 Speak";
+                speakBtn.addEventListener("click", () => {
+                    speakResponse(text);
+                });
+
+                actions.appendChild(copyBtn);
+                actions.appendChild(speakBtn);
+                group.appendChild(actions);
+            }
+        }
+
+        const time = document.createElement("div");
+        time.classList.add("message-time");
+        time.textContent = getCurrentTime();
+        group.appendChild(time);
+
+        webMessageList.appendChild(group);
+        
+        const wrapper = document.querySelector(".web-search-message-list-wrapper");
+        if (wrapper) {
+            wrapper.scrollTop = wrapper.scrollHeight;
+        }
+        return group;
+    }
+
+    function updateWebAssistantMessage(group, text, sources = [], isError = false) {
+        if (!group) return;
+        if (isError) group.classList.add("error-message");
+
+        const bubble = group.querySelector(".message-bubble");
+        if (bubble) {
+            bubble.innerHTML = renderMarkdown(text);
+
+            if (sources && sources.length > 0) {
+                const sourcesDiv = document.createElement("div");
+                sourcesDiv.classList.add("web-sources-attached");
+                
+                let sourcesHTML = `<div class="web-sources-attached-header">Attached Sources (${sources.length})</div><div class="web-sources-attached-grid">`;
+                sources.forEach(src => {
+                    sourcesHTML += `
+                        <div class="source-card">
+                            <div>
+                                <span class="source-domain-badge">${escapeHtml(src.domain || 'WEB')}</span>
+                                <h4 class="source-card-title">${escapeHtml(src.title)}</h4>
+                                <p class="source-card-snippet">${escapeHtml(src.snippet)}</p>
+                            </div>
+                            ${src.url ? `<a href="${escapeHtml(src.url)}" target="_blank" rel="noopener noreferrer" class="btn secondary-btn sm source-open-btn">
+                                <span>Open Source</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>` : ''}
+                        </div>
+                    `;
+                });
+                sourcesHTML += `</div>`;
+                sourcesDiv.innerHTML = sourcesHTML;
+                bubble.appendChild(sourcesDiv);
+            }
+        }
+
+        let actions = group.querySelector(".message-actions");
+        if (!actions) {
+            actions = document.createElement("div");
+            actions.classList.add("message-actions");
+
+            const copyBtn = document.createElement("button");
+            copyBtn.classList.add("action-chip");
+            copyBtn.textContent = "📋 Copy";
+            copyBtn.addEventListener("click", () => {
+                navigator.clipboard.writeText(text);
+                copyBtn.textContent = "✓ Copied";
+                showToast("Copied to clipboard", "success");
+                setTimeout(() => copyBtn.textContent = "📋 Copy", 2000);
+            });
+
+            const speakBtn = document.createElement("button");
+            speakBtn.classList.add("action-chip", "speak-btn");
+            speakBtn.textContent = "🔊 Speak";
+            speakBtn.addEventListener("click", () => {
+                speakResponse(text);
+            });
+
+            actions.appendChild(copyBtn);
+            actions.appendChild(speakBtn);
+            group.appendChild(actions);
+        }
+
+        const wrapper = document.querySelector(".web-search-message-list-wrapper");
+        if (wrapper) {
+            wrapper.scrollTop = wrapper.scrollHeight;
+        }
+    }
+
+    if (webMicBtn && speechRecognition) {
+        webMicBtn.addEventListener("click", () => {
+            stopSpeaking();
+            if (isListening) {
+                speechRecognition.stop();
+            } else {
+                speechRecognition.onresult = (e) => {
+                    const transcript = e.results[0][0].transcript;
+                    if (webSearchInput && transcript) {
+                        webSearchInput.value = transcript;
+                        webSearchInput.style.height = "auto";
+                        webSearchInput.style.height = Math.min(webSearchInput.scrollHeight, 160) + "px";
+                        if (voiceSettings.handsFree === "on" && webSearchForm) {
+                            setTimeout(() => webSearchForm.requestSubmit(), 300);
+                        }
+                    }
+                };
+                speechRecognition.start();
+            }
+        });
     }
 });

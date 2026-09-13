@@ -2,11 +2,20 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 import os
 import sqlite3
 import logging
+import uuid
+import json
+import urllib.request
+import urllib.parse
 from functools import wraps
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from google import genai
 from google.genai import types
+
+import pypdf
+import docx
+from duckduckgo_search import DDGS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +36,21 @@ client = genai.Client(api_key=api_key) if api_key else None
 
 # Preferred and fallback models
 PREFERRED_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-1.5-flash"]
+FALLBACK_MODELS = [
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
+    "gemini-flash-latest",
+    "gemini-3.1-pro-preview"
+]
+
+# Upload directory configuration
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "data", "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 # SQLite Database Helper Functions
 DB_PATH = os.path.join(os.path.dirname(__file__), "jarvis.db")
@@ -54,6 +77,20 @@ def init_db():
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                filename TEXT NOT NULL,
+                original_filename TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                extracted_text TEXT NOT NULL,
+                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         """)
         db.commit()
@@ -103,7 +140,7 @@ MODE_INSTRUCTIONS = {
 }
 
 def call_gemini_with_fallback(contents, config=None):
-    """Helper function to call Gemini API with model fallback if a model is unavailable."""
+    """Helper function to call Gemini API with model fallback if a model is unavailable or rate limited."""
     if not client:
         raise ValueError("Gemini API key is missing. Please set GEMINI_API_KEY in your .env file.")
 
@@ -121,12 +158,8 @@ def call_gemini_with_fallback(contents, config=None):
             return response
         except Exception as e:
             last_error = e
-            error_str = str(e)
-            logger.warning(f"Model {model_name} failed: {error_str}")
-            if "404" in error_str or "NOT_FOUND" in error_str or "not available" in error_str:
-                continue
-            else:
-                raise e
+            logger.warning(f"Model {model_name} failed: {e}. Trying next fallback model...")
+            continue
     
     raise last_error
 
@@ -417,6 +450,369 @@ def notes_ai():
     except Exception as e:
         logger.error(f"Error in /notes/ai endpoint: {str(e)}", exc_info=True)
         return jsonify({"error": "Something went wrong while processing your note."}), 500
+
+# --- FEATURE 1: DOCUMENTS MANAGEMENT & RAG ENDPOINTS ---
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def extract_text_from_file(filepath, ext):
+    ext = ext.lower()
+    text = ""
+    if ext == "txt":
+        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+            text = f.read()
+    elif ext == "pdf":
+        try:
+            reader = pypdf.PdfReader(filepath)
+            pages_text = []
+            for page in reader.pages:
+                t = page.extract_text()
+                if t:
+                    pages_text.append(t)
+            text = "\n".join(pages_text)
+        except Exception as e:
+            logger.error(f"PDF extraction error: {e}")
+            raise ValueError("Failed to extract text from PDF file.")
+    elif ext == "docx":
+        try:
+            doc = docx.Document(filepath)
+            paragraphs = [p.text for p in doc.paragraphs if p.text]
+            text = "\n".join(paragraphs)
+        except Exception as e:
+            logger.error(f"DOCX extraction error: {e}")
+            raise ValueError("Failed to extract text from DOCX file.")
+    return text.strip()
+
+@app.route("/api/documents", methods=["GET"])
+@login_required
+def get_documents():
+    """List all documents uploaded by the current authenticated user."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT id, filename, original_filename, file_type, file_size, uploaded_at FROM documents WHERE user_id = ? ORDER BY id DESC",
+        (session["user_id"],)
+    ).fetchall()
+
+    docs = []
+    for r in rows:
+        docs.append({
+            "id": r["id"],
+            "filename": r["filename"],
+            "original_filename": r["original_filename"],
+            "file_type": r["file_type"],
+            "file_size": r["file_size"],
+            "uploaded_at": r["uploaded_at"]
+        })
+    return jsonify({"documents": docs}), 200
+
+@app.route("/api/documents/upload", methods=["POST"])
+@login_required
+def upload_document():
+    """Upload a document (PDF, TXT, DOCX), extract text, and store row for user."""
+    if "file" not in request.files:
+        return jsonify({"error": "No file attached in upload request."}), 400
+
+    file = request.files["file"]
+    if not file or file.filename == "":
+        return jsonify({"error": "No file selected."}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Unsupported file format. Please upload a PDF, TXT, or DOCX document."}), 400
+
+    original_filename = secure_filename(file.filename)
+    if not original_filename:
+        original_filename = f"document_{uuid.uuid4().hex[:8]}"
+
+    ext = original_filename.rsplit(".", 1)[1].lower() if "." in original_filename else ""
+    saved_filename = f"{session['user_id']}_{uuid.uuid4().hex}_{original_filename}"
+    filepath = os.path.join(UPLOAD_FOLDER, saved_filename)
+
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+
+    if file_size > MAX_FILE_SIZE:
+        return jsonify({"error": "File size exceeds maximum allowed limit (10MB)."}), 400
+
+    try:
+        file.save(filepath)
+        extracted_text = extract_text_from_file(filepath, ext)
+
+        if not extracted_text:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            return jsonify({"error": "The uploaded document contains no readable text or is empty."}), 400
+
+        db = get_db()
+        cursor = db.execute(
+            """INSERT INTO documents (user_id, filename, original_filename, file_path, file_type, file_size, extracted_text)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (session["user_id"], saved_filename, original_filename, filepath, ext.upper(), file_size, extracted_text)
+        )
+        db.commit()
+        doc_id = cursor.lastrowid
+
+        return jsonify({
+            "message": "Document uploaded successfully",
+            "document": {
+                "id": doc_id,
+                "original_filename": original_filename,
+                "file_type": ext.upper(),
+                "file_size": file_size,
+                "uploaded_at": "Just now"
+            }
+        }), 200
+
+    except ValueError as ve:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        logger.error(f"Upload error: {str(e)}", exc_info=True)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        return jsonify({"error": "Failed to process and store document. Please try again."}), 500
+
+@app.route("/api/documents/<int:doc_id>/ask", methods=["POST"])
+@login_required
+def ask_document(doc_id):
+    """Ask a question about a specific uploaded document (Strict user ownership check)."""
+    db = get_db()
+    doc = db.execute(
+        "SELECT * FROM documents WHERE id = ? AND user_id = ?",
+        (doc_id, session["user_id"])
+    ).fetchone()
+
+    if not doc:
+        return jsonify({"error": "Document not found or access denied."}), 404
+
+    data = request.get_json(silent=True) or {}
+    question = (data.get("question") or data.get("message") or "").strip()
+
+    if not question:
+        return jsonify({"error": "Please enter a question about the document."}), 400
+
+    prompt = (
+        f"You are JARVIS Document Assistant. Answer the user's question accurately based ON THE FOLLOWING DOCUMENT CONTENT.\n"
+        f"If the answer is not contained in the document text, state so clearly while providing any helpful relevant context.\n\n"
+        f"--- DOCUMENT CONTENT ({doc['original_filename']}) ---\n"
+        f"{doc['extracted_text']}\n"
+        f"---------------------------------------------------\n\n"
+        f"USER QUESTION: {question}"
+    )
+
+    try:
+        config = types.GenerateContentConfig(
+            system_instruction="You are JARVIS Document Assistant. Provide clear, well-structured, and helpful answers based on the document."
+        )
+        response = call_gemini_with_fallback(contents=prompt, config=config)
+        answer_text = response.text if response and response.text else "No response generated."
+        return jsonify({
+            "answer": answer_text,
+            "doc_id": doc_id,
+            "original_filename": doc["original_filename"]
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error asking document: {str(e)}", exc_info=True)
+        return jsonify({"error": "Something went wrong while analyzing the document."}), 500
+
+@app.route("/api/documents/<int:doc_id>", methods=["DELETE"])
+@login_required
+def delete_document(doc_id):
+    """Delete a document record and file (Strict user ownership check)."""
+    db = get_db()
+    doc = db.execute(
+        "SELECT * FROM documents WHERE id = ? AND user_id = ?",
+        (doc_id, session["user_id"])
+    ).fetchone()
+
+    if not doc:
+        return jsonify({"error": "Document not found or access denied."}), 404
+
+    file_path = doc["file_path"]
+    if file_path and os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            logger.warning(f"Could not delete physical file {file_path}: {e}")
+
+    db.execute("DELETE FROM documents WHERE id = ? AND user_id = ?", (doc_id, session["user_id"]))
+    db.commit()
+
+    return jsonify({"message": "Document deleted successfully."}), 200
+
+
+# --- FEATURE 2: REAL WEB SEARCH ENDPOINTS ---
+def normalize_url(raw_url):
+    """Normalize URL by stripping tracking parameters (utm_*, ref, gclid) and trailing slashes for deduplication."""
+    if not raw_url:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(raw_url.strip())
+        scheme = parsed.scheme.lower()
+        netloc = parsed.netloc.lower()
+        if netloc.startswith("www."):
+            netloc = netloc[4:]
+        path = parsed.path.rstrip("/")
+        query_params = urllib.parse.parse_qsl(parsed.query)
+        filtered_params = [
+            (k, v) for k, v in query_params
+            if not k.lower().startswith("utm_") and k.lower() not in ("ref", "source", "gclid", "fbclid")
+        ]
+        query_str = urllib.parse.urlencode(filtered_params)
+        norm = f"{scheme}://{netloc}{path}"
+        if query_str:
+            norm += f"?{query_str}"
+        return norm
+    except Exception:
+        return raw_url.strip().rstrip("/")
+
+def perform_web_search(query, max_results=5):
+    """Executes live web search using DDGS or optional WEB_SEARCH_API_KEY environment variable with URL deduplication."""
+    search_api_key = os.getenv("WEB_SEARCH_API_KEY")
+    raw_results = []
+    seen_urls = set()
+
+    # 1. External API search if key is provided
+    if search_api_key:
+        try:
+            req_data = json.dumps({"query": query, "max_results": max_results * 2}).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.tavily.com/search",
+                data=req_data,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {search_api_key}"}
+            )
+            with urllib.request.urlopen(req, timeout=8) as response:
+                data = json.loads(response.read().decode("utf-8"))
+                for res in data.get("results", []):
+                    raw_results.append({
+                        "title": res.get("title", "Search Result"),
+                        "snippet": res.get("content") or res.get("snippet", ""),
+                        "url": res.get("url", "")
+                    })
+        except Exception as e:
+            logger.warning(f"External search API failed, falling back to DDGS: {e}")
+
+    # 2. DuckDuckGo Search (Built-in zero-key option)
+    if not raw_results:
+        try:
+            with DDGS() as ddgs:
+                ddg_results = list(ddgs.text(query, max_results=max_results * 3))
+                for item in ddg_results:
+                    raw_results.append({
+                        "title": item.get("title", "Search Result"),
+                        "snippet": item.get("body") or item.get("snippet", ""),
+                        "url": item.get("href") or item.get("link", "")
+                    })
+        except Exception as e:
+            logger.warning(f"DDGS text search warning: {e}")
+
+    # 3. Web Search Fallback (Wikipedia API for query search)
+    if not raw_results:
+        try:
+            encoded_q = urllib.parse.quote(query)
+            wiki_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={encoded_q}&format=json"
+            req = urllib.request.Request(wiki_url, headers={"User-Agent": "JARVIS-AI-Assistant/1.0"})
+            with urllib.request.urlopen(req, timeout=6) as response:
+                data = json.loads(response.read().decode("utf-8"))
+                search_items = data.get("query", {}).get("search", [])
+                for item in search_items[:max_results * 2]:
+                    snippet = item.get("snippet", "").replace('<span class="searchmatch">', '').replace('</span>', '')
+                    page_title = item.get("title", "Search Result")
+                    page_url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(page_title.replace(' ', '_'))}"
+                    raw_results.append({
+                        "title": page_title,
+                        "snippet": snippet,
+                        "url": page_url
+                    })
+        except Exception as e:
+            logger.error(f"Web search fallback error: {e}")
+            raise ValueError("Web search is currently unavailable. Please check network connection.")
+
+    # Deduplicate and attach domain helper
+    formatted_results = []
+    for r in raw_results:
+        url = r.get("url", "")
+        if not url:
+            continue
+        norm_u = normalize_url(url)
+        if norm_u in seen_urls:
+            continue
+        seen_urls.add(norm_u)
+
+        domain = ""
+        try:
+            parsed = urllib.parse.urlparse(url)
+            domain = parsed.netloc.replace("www.", "")
+        except Exception:
+            domain = ""
+
+        formatted_results.append({
+            "title": r.get("title", "Search Result"),
+            "snippet": r.get("snippet", ""),
+            "url": url,
+            "domain": domain or "web"
+        })
+
+        if len(formatted_results) >= max_results:
+            break
+
+    return formatted_results
+
+@app.route("/api/web-search", methods=["POST"])
+@login_required
+def web_search():
+    """Handle live web search requests, fetch context, synthesize with Gemini."""
+    data = request.get_json(silent=True) or {}
+    query = (data.get("query") or data.get("message") or "").strip()
+
+    if not query:
+        return jsonify({"error": "Please enter a search query."}), 400
+
+    try:
+        results = perform_web_search(query, max_results=5)
+
+        if not results:
+            return jsonify({
+                "answer": f"No web search results could be retrieved for '{query}'.",
+                "results": [],
+                "query": query
+            }), 200
+
+        context_blocks = []
+        for i, r in enumerate(results, start=1):
+            context_blocks.append(f"[{i}] {r['title']}\nDomain: {r['domain']}\nSnippet: {r['snippet']}\nURL: {r['url']}")
+
+        context_str = "\n\n".join(context_blocks)
+        prompt = (
+            f"You are JARVIS with real-time Web Search capabilities.\n"
+            f"The user asked: '{query}'\n\n"
+            f"Here are the live web search results retrieved from the internet:\n\n"
+            f"{context_str}\n\n"
+            f"Instructions:\n"
+            f"1. Provide a clear, structured, up-to-date answer to the user's question based on the search results above.\n"
+            f"2. Reference key facts, news, or details from the sources clearly.\n"
+            f"3. Maintain a helpful, calm, and professional JARVIS persona."
+        )
+
+        config = types.GenerateContentConfig(
+            system_instruction="You are JARVIS Web Search Assistant. Provide current, well-structured, and helpful answers based on web search context."
+        )
+        response = call_gemini_with_fallback(contents=prompt, config=config)
+        answer_text = response.text if response and response.text else "Unable to synthesize answer from search results."
+
+        return jsonify({
+            "answer": answer_text,
+            "results": results,
+            "query": query
+        }), 200
+
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        logger.error(f"Error in web search endpoint: {str(e)}", exc_info=True)
+        return jsonify({"error": "Something went wrong while searching the web. Please try again."}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

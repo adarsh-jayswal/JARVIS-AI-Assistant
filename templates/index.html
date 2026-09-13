@@ -33,7 +33,7 @@
             <div class="sidebar-action-container">
                 <button id="newChatBtn" class="btn primary-btn new-chat-btn full-width" title="Start a fresh conversation">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    <span> New Chat</span>
+                    <span>New Chat</span>
                 </button>
             </div>
 
@@ -64,24 +64,23 @@
                     <span>Settings</span>
                 </button>
 
+                <!-- AI TOOLS SECTION -->
+                <div class="nav-section-title">AI Tools</div>
+                <button id="navDocuments" class="nav-item" data-view="documentsView">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    <span>Documents</span>
+                </button>
+                <button id="navWebSearch" class="nav-item" data-view="webSearchView">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <span>Web Search</span>
+                </button>
+
                 <!-- SIDEBAR CHATS MANAGER SECTION -->
                 <div class="nav-section-title">Chats</div>
                 <div class="chats-search-container">
                     <input type="text" id="chatsSearchInput" class="chats-search-input" placeholder="Search chats...">
                 </div>
                 <div id="sidebarChatsList" class="sidebar-chats-list"></div>
-
-                <div class="nav-section-title">Coming Soon</div>
-                <button class="nav-item disabled" title="Coming Soon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
-                    <span>Documents</span>
-                    <span class="badge">Soon</span>
-                </button>
-                <button class="nav-item disabled" title="Coming Soon">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line></svg>
-                    <span>Web Search</span>
-                    <span class="badge">Soon</span>
-                </button>
             </nav>
 
             <!-- SIDEBAR PROFILE SECTION -->
@@ -106,12 +105,21 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                     </button>
                     <div class="top-bar-identity">
-                        <img src="{{ url_for('static', filename='images/jarvis_logo.jpg') }}" alt="JARVIS Mini Logo" class="top-mini-logo">
-                        <h2 id="viewTitle" class="view-title">JARVIS Chat</h2>
+                        <h2 id="viewTitle" class="view-title">Chat</h2>
+                    </div>
+                    <!-- ASSISTANT STATUS BADGE -->
+                    <div id="assistantStatusBadge" class="assistant-status-badge idle" title="Assistant Status">
+                        <span class="status-dot"></span>
+                        <span id="assistantStatusText" class="status-text">Ready</span>
                     </div>
                 </div>
 
                 <div class="top-right">
+                    <!-- GLOBAL STOP SPEAKING BUTTON -->
+                    <button id="topStopSpeakBtn" class="btn danger-btn sm top-stop-speak-btn" style="display: none;" title="Stop JARVIS Speech" aria-label="Stop speaking">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"></rect></svg>
+                        <span>Stop Speaking</span>
+                    </button>
                     <!-- THEME TOGGLE BUTTON -->
                     <button id="themeToggleBtn" class="icon-btn" title="Toggle Theme" aria-label="Toggle Theme">
                         <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
@@ -151,51 +159,51 @@
                         <p class="welcome-subtitle">How can I assist you today?</p>
 
                         <div class="starter-grid">
-                            <button class="starter-card" data-prompt="Explain recursion simply">
+                            <button class="starter-card" data-prompt="Explain a topic to me in a simple way.">
                                 <span class="card-icon">💡</span>
                                 <div class="card-info">
-                                    <strong>Explain recursion simply</strong>
-                                    <span>Learn programming concepts step-by-step</span>
+                                    <strong>Explain something to me</strong>
+                                    <span>Break down any topic in a simple way</span>
                                 </div>
                             </button>
 
-                            <button class="starter-card" data-prompt="Help me fix this Python error">
-                                <span class="card-icon">🐛</span>
+                            <button class="starter-card" data-prompt="Help me solve a problem step by step.">
+                                <span class="card-icon">🧠</span>
                                 <div class="card-info">
-                                    <strong>Help me fix this Python error</strong>
-                                    <span>Debug code issues and stack trace errors</span>
+                                    <strong>Help me solve a problem</strong>
+                                    <span>Work through a problem step by step</span>
                                 </div>
                             </button>
 
-                            <button class="starter-card" data-prompt="Write a professional email">
+                            <button class="starter-card" data-prompt="Help me write something clearly and naturally.">
                                 <span class="card-icon">✍️</span>
                                 <div class="card-info">
-                                    <strong>Write a professional email</strong>
-                                    <span>Draft compelling messages and follow-ups</span>
+                                    <strong>Write something for me</strong>
+                                    <span>Create clear and natural content</span>
                                 </div>
                             </button>
 
-                            <button class="starter-card" data-prompt="Summarize this text">
+                            <button class="starter-card" data-prompt="Help me summarize this information.">
                                 <span class="card-icon">📄</span>
                                 <div class="card-info">
-                                    <strong>Summarize this text</strong>
-                                    <span>Extract core points and action items</span>
+                                    <strong>Summarize something</strong>
+                                    <span>Turn long information into key points</span>
                                 </div>
                             </button>
 
-                            <button class="starter-card" data-prompt="Give me project ideas">
+                            <button class="starter-card" data-prompt="Give me some creative ideas.">
                                 <span class="card-icon">🚀</span>
                                 <div class="card-info">
-                                    <strong>Give me project ideas</strong>
-                                    <span>Brainstorm unique coding & creative ideas</span>
+                                    <strong>Give me some ideas</strong>
+                                    <span>Brainstorm creative and useful possibilities</span>
                                 </div>
                             </button>
 
-                            <button class="starter-card" data-prompt="Teach me JavaScript">
-                                <span class="card-icon">💻</span>
+                            <button class="starter-card" data-prompt="Teach me something in a simple and easy-to-understand way.">
+                                <span class="card-icon">🎓</span>
                                 <div class="card-info">
-                                    <strong>Teach me JavaScript</strong>
-                                    <span>Master web development fundamentals</span>
+                                    <strong>Help me learn</strong>
+                                    <span>Understand new concepts at your own pace</span>
                                 </div>
                             </button>
                         </div>
@@ -221,13 +229,13 @@
                     <form id="chatForm" class="composer-form">
                         <textarea 
                             id="chatInput" 
-                            placeholder="Type a message... (Press Enter to send, Shift+Enter for new line)" 
+                            placeholder="Type a message or click the microphone to speak... (Press Enter to send, Shift+Enter for new line)" 
                             rows="1"
                             required
                         ></textarea>
                         
                         <!-- VOICE MIC BUTTON -->
-                        <button type="button" id="micBtn" class="icon-btn mic-btn" title="Voice Input (Speech-to-Text)">
+                        <button type="button" id="micBtn" class="icon-btn mic-btn" title="Use Voice Input (Speech-to-Text)" aria-label="Start voice input">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
                         </button>
 
@@ -369,7 +377,7 @@
                 <div class="panel-content-container max-600">
                     <div class="panel-header">
                         <h2>Settings</h2>
-                        <p>Configure JARVIS preferences, account settings, profile name, avatar, appearance, and chat behaviors.</p>
+                        <p>Configure JARVIS preferences, account settings, voice assistant controls, profile, appearance, and behaviors.</p>
                     </div>
 
                     <!-- ACCOUNT SECTION -->
@@ -381,6 +389,98 @@
                                 <p id="settingsUserEmail" class="text-muted-sm">user@example.com</p>
                             </div>
                             <button type="button" id="settingsLogoutBtn" class="btn danger-btn sm">Logout</button>
+                        </div>
+                    </div>
+
+                    <!-- VOICE ASSISTANT SECTION -->
+                    <div class="settings-group">
+                        <h3>Voice Assistant</h3>
+                        
+                        <div class="setting-item">
+                            <div>
+                                <strong>Voice Responses</strong>
+                                <p>Automatically read JARVIS responses aloud upon arrival.</p>
+                            </div>
+                            <select id="voiceResponsesToggle" class="custom-select">
+                                <option value="off" selected>OFF (Default)</option>
+                                <option value="on">ON</option>
+                            </select>
+                        </div>
+
+                        <div class="setting-item" style="margin-top: 10px;">
+                            <div>
+                                <strong>Hands-Free Mode</strong>
+                                <p>Automatically send message when speech recognition completes.</p>
+                            </div>
+                            <select id="handsFreeToggle" class="custom-select">
+                                <option value="off" selected>OFF (Default)</option>
+                                <option value="on">ON</option>
+                            </select>
+                        </div>
+
+                        <div class="setting-item" style="margin-top: 10px;">
+                            <div>
+                                <strong>Recognition Input Language</strong>
+                                <p>Select speech recognition input language.</p>
+                            </div>
+                            <select id="recLanguageSelect" class="custom-select">
+                                <option value="en-US" selected>English (en-US)</option>
+                                <option value="hi-IN">Hindi (hi-IN)</option>
+                            </select>
+                        </div>
+
+                        <!-- QUICK VOICE PROFILE PRESET SELECTOR -->
+                        <div class="setting-item" style="margin-top: 10px;">
+                            <div>
+                                <strong>Voice Profile</strong>
+                                <p>Quick voice profile preset.</p>
+                            </div>
+                            <div class="voice-profile-pills">
+                                <button type="button" class="voice-profile-pill active" data-profile="system">System</button>
+                                <button type="button" class="voice-profile-pill" data-profile="female">Female</button>
+                                <button type="button" class="voice-profile-pill" data-profile="male">Male</button>
+                            </div>
+                        </div>
+
+                        <div class="setting-item" style="margin-top: 10px;">
+                            <div>
+                                <strong>Speech Synthesis Voice</strong>
+                                <p>Select browser text-to-speech voice.</p>
+                            </div>
+                            <select id="voiceSelect" class="custom-select">
+                                <option value="">Default System Voice</option>
+                            </select>
+                        </div>
+
+                        <div class="setting-item" style="margin-top: 10px;">
+                            <div>
+                                <strong>Speech Rate</strong>
+                                <p>Speed of voice output: <span id="voiceRateValue">1.0</span>x</p>
+                            </div>
+                            <input type="range" id="voiceRateInput" min="0.5" max="2.0" step="0.1" value="1.0" class="custom-range">
+                        </div>
+
+                        <div class="setting-item" style="margin-top: 10px;">
+                            <div>
+                                <strong>Voice Pitch</strong>
+                                <p>Pitch of voice output: <span id="voicePitchValue">1.0</span></p>
+                            </div>
+                            <input type="range" id="voicePitchInput" min="0.5" max="1.5" step="0.1" value="1.0" class="custom-range">
+                        </div>
+
+                        <div class="setting-item" style="margin-top: 10px;">
+                            <div>
+                                <strong>Voice Volume</strong>
+                                <p>Volume level: <span id="voiceVolumeValue">100%</span></p>
+                            </div>
+                            <input type="range" id="voiceVolumeInput" min="0.0" max="1.0" step="0.1" value="1.0" class="custom-range">
+                        </div>
+
+                        <div class="setting-item" style="margin-top: 12px; justify-content: flex-end;">
+                            <button type="button" id="testVoiceBtn" class="btn primary-btn sm">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                                <span>Test Voice</span>
+                            </button>
                         </div>
                     </div>
 
@@ -404,7 +504,7 @@
                                 <label for="userNameInput">Profile Name</label>
                                 <input type="text" id="userNameInput" value="User" class="custom-input-sm" placeholder="Enter your name...">
                             </div>
-                            <div class="profile-editor-footer" style="margin-top: 16px; display: flex; align-align: center;">
+                            <div class="profile-editor-footer" style="margin-top: 16px; display: flex; align-items: center;">
                                 <button type="button" id="saveProfileBtn" class="btn primary-btn sm">Save Profile</button>
                                 <span id="profileStatusToast" class="status-toast" style="display: none;">✓ Profile updated</span>
                             </div>
@@ -467,6 +567,124 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- VIEW 7: DOCUMENTS VIEW -->
+            <section id="documentsView" class="view-panel" style="display: none;">
+                <div class="panel-content-container">
+                    <div class="panel-header">
+                        <h2>Document Assistant</h2>
+                        <p>Upload your PDF, TXT, or DOCX documents to extract insights and ask JARVIS targeted questions.</p>
+                    </div>
+
+                    <!-- UPLOADER CARD -->
+                    <div class="document-upload-card">
+                        <div class="upload-dropzone" id="uploadDropzone">
+                            <input type="file" id="docFileInput" accept=".pdf,.txt,.docx" style="display: none;">
+                            <div class="upload-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            </div>
+                            <div class="upload-text">
+                                <strong>Click to upload a document</strong>
+                                <p>Supported Formats: PDF, TXT, DOCX (Max 10MB)</p>
+                            </div>
+                            <button type="button" id="triggerUploadBtn" class="btn primary-btn sm">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                <span>Upload Document</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- UPLOADED DOCUMENTS LIST -->
+                    <div class="documents-section-header">
+                        <h3>Your Uploaded Documents</h3>
+                        <span id="docCountBadge" class="doc-count-badge">0 Documents</span>
+                    </div>
+
+                    <div id="documentsGrid" class="documents-grid">
+                        <div class="doc-empty-state">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                            <p>No documents uploaded yet. Upload a document above to start asking questions!</p>
+                        </div>
+                    </div>
+
+                    <!-- ACTIVE DOCUMENT CHAT SECTION -->
+                    <div id="docChatContainer" class="doc-chat-container" style="display: none;">
+                        <div class="doc-chat-header">
+                            <div class="doc-chat-title-wrapper">
+                                <div class="doc-chat-title">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                                    <span id="activeDocName">Document Chat</span>
+                                </div>
+                                <span id="activeDocMeta" class="doc-chat-meta">DOCUMENT CHAT</span>
+                            </div>
+                            <button type="button" id="closeDocChatBtn" class="btn secondary-btn sm">Close Chat</button>
+                        </div>
+
+                        <div id="docMessageList" class="message-list doc-message-list"></div>
+
+                        <form id="docChatForm" class="document-chat-composer">
+                            <!-- VOICE MIC BUTTON -->
+                            <button type="button" id="docMicBtn" class="icon-btn mic-btn document-mic-btn" title="Use Voice Input (Speech-to-Text)" aria-label="Start voice input">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                            </button>
+
+                            <!-- TEXTAREA -->
+                            <textarea id="docChatInput" placeholder="Ask something about this document..." rows="1" required class="document-chat-textarea"></textarea>
+
+                            <!-- SEND BUTTON -->
+                            <button type="submit" id="docSendBtn" class="btn primary-btn send-btn document-send-btn" title="Send Message" aria-label="Send message">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 8: WEB SEARCH VIEW -->
+            <section id="webSearchView" class="view-panel" style="display: none;">
+                <div class="web-search-chat-container">
+                    <!-- HEADER -->
+                    <div class="web-search-header">
+                        <div class="web-search-title-wrapper">
+                            <div class="web-search-title">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                                <span>Live Web Search</span>
+                            </div>
+                            <span class="web-live-badge">🌐 REAL-TIME SEARCH</span>
+                        </div>
+                        <p class="web-search-subtitle">Search live web data and converse with JARVIS about real-time news, facts, and events.</p>
+                    </div>
+
+                    <!-- CHAT MESSAGES LOG AREA WITH RIGHT-EDGE SCROLLBAR -->
+                    <div class="web-search-message-list-wrapper">
+                        <div id="webMessageList" class="message-list web-search-message-list">
+                            <div class="web-search-welcome">
+                                <div class="web-search-welcome-icon">
+                                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                </div>
+                                <h3>Search the Web with JARVIS</h3>
+                                <p>Ask any question about current events, news, weather, or real-time data. JARVIS will retrieve live sources and synthesize answers for you.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STICKY UNIFIED AI COMPOSER FOR WEB SEARCH -->
+                    <form id="webSearchForm" class="web-search-composer-bar">
+                        <!-- MIC BUTTON -->
+                        <button type="button" id="webMicBtn" class="icon-btn mic-btn web-mic-btn" title="Use Voice Search (Speech-to-Text)" aria-label="Start voice search">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                        </button>
+
+                        <!-- AUTO-RESIZING TEXTAREA -->
+                        <textarea id="webSearchInput" placeholder="Ask anything to search the web live..." rows="1" required class="web-search-textarea"></textarea>
+
+                        <!-- SEND BUTTON -->
+                        <button type="submit" id="webSearchBtn" class="btn primary-btn send-btn web-send-btn" title="Search Web" aria-label="Send web search query">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </form>
                 </div>
             </section>
         </main>

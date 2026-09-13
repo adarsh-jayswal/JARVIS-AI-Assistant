@@ -1,4 +1,7 @@
 
+# Uploads & User documents
+data/uploads/
+uploads/
 
 # Environment variables
 .env
